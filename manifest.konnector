@@ -4,7 +4,7 @@
   "type": "node",
   "slug": "konnectorslug",
   "description": "description",
-  "source": "git://github.com/cozy/cozy-konnector-thename.git",
+  "source": "git://github.com/cozy/cozy-konnector-free-mobile.git",
   "fields": {
     "save_folder": {
       "doctype": "io.cozy.files",
@@ -45,7 +45,7 @@
     }
   },
   "developer": {
-    "name": "yourname",
-    "url": "your web site"
+    "name": "cozy",
+    "url": "https://github.com/cozy"
   }
 }

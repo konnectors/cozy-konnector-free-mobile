@@ -1,10 +1,10 @@
 {
-  "name": "cozy-konnector-newkonnectorname",
+  "name": "cozy-konnector-free-mobile",
   "version": "1.0.0",
   "description": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cozy/cozy-konnector-thename.git"
+    "url": "git+https://github.com/cozy/cozy-konnector-free-mobile.git"
   },
   "keywords": [],
   "author": "",
