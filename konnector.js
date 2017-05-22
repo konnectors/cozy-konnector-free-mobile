@@ -44,7 +44,7 @@ PhoneBill.all = callback => PhoneBill.request('byDate', callback);
 
 
 // Konnector
-export default {
+module.exports = {
     name: "Free Mobile",
     slug: "freemobile",
     description: 'konnector description free mobile',
@@ -111,7 +111,7 @@ export default {
                 log.info("Import finished");
 
                 let notifContent = null;
-                if (__guard__(entries != null ? entries.filtered : undefined, x => x.length) > 0) {
+                if (entries.filtered && entry.filtered.length > 0) {
                     let localizationKey = 'notification bills';
                     let options = {smart_count: entries.filtered.length};
                     notifContent = localization.t(localizationKey, options);
@@ -506,7 +506,3 @@ var getSmallImage = timer =>
         });
     }
 ;
-
-function __guard__(value, transform) {
-  return (typeof value !== 'undefined' && value !== null) ? transform(value) : undefined;
-}
