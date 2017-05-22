@@ -1,24 +1,12 @@
-let cozydb = require('cozydb');
-let requestJson = require('request-json');
+const moment = require('moment');
+const cheerio = require('cheerio');
+const async = require('async');
+const pngjs = require('pngjs-image');
 
-let moment = require('moment');
-let cheerio = require('cheerio');
-let fs = require('fs');
-let async = require('async');
-let pngjs = require('pngjs-image');
 let request = require('request');
 
-let File = require('../models/file');
-let fetcher = require('../lib/fetcher');
-let filterExisting = require('../lib/filter_existing');
-let saveDataAndFile = require('../lib/save_data_and_file');
-let linkBankOperation = require('../lib/link_bank_operation');
-let localization = require('../lib/localization_manager');
-
-let log = require('printit')({
-    prefix: "Free Mobile",
-    date: true
-});
+const {log, baseKonnector, fetcher, filterExisting, linkBankOperation, saveDataAndFile, models} = require('cozy-konnector-libs')
+const Bill = models.bill
 
 
 // Useragent is required
@@ -27,20 +15,6 @@ request = request.defaults({
         "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:53.0) Gecko/20100101 Firefox/53.0"
     }
 });
-
-// Models
-let PhoneBill = cozydb.getModel('PhoneBill', {
-    date: Date,
-    vendor: String,
-    amount: Number,
-    fileId: String,
-    pdfurl: String,
-    binaryId: String,
-    type: String
-}
-);
-
-PhoneBill.all = callback => PhoneBill.request('byDate', callback);
 
 
 // Konnector
@@ -56,36 +30,18 @@ module.exports = {
         css: '#CD1E25'
     },
 
-    fields: {
-        login: {
-            type: "text"
-        },
-        password: {
-            type: "password"
-        },
-        folderPath: {
-            type: "folder",
-            advanced: true
-        }
-    },
+    dataType: ['bill'],
 
-    dataType: [
-        'bill'
-    ],
-
-    models: {
-        phonebill: PhoneBill
-    },
+    models: [Bill],
 
     // Define model requests.
     init(callback) {
         let map = doc => emit(doc.date, doc);
-        return PhoneBill.defineRequest('byDate', map, err => callback(err));
+        return Bill.defineRequest('byDate', map, err => callback(err));
     },
 
     fetch(requiredFields, callback) {
-
-        log.info("Import started");
+        log('info', 'Import started');
 
         return fetcher.new()
             .use(prepareLogIn)
@@ -93,14 +49,14 @@ module.exports = {
             .use(logIn)
             .use(getBillPage)
             .use(parseBillPage)
-            .use(filterExisting(log, PhoneBill))
-            .use(saveDataAndFile(log, PhoneBill, {
+            .use(filterExisting(log, Bill))
+            .use(saveDataAndFile(log, Bill, {
                 vendor: 'freemobile',
                 others: ['titulaire', 'phonenumber']
             }, ['facture']))
             .use(linkBankOperation({
                 log,
-                model: PhoneBill,
+                model: Bill,
                 identifier: 'free mobile',
                 dateDelta: 14,
                 amountDelta: 0.1
@@ -108,16 +64,8 @@ module.exports = {
             .use(logOut)
             .args(requiredFields, {}, {})
             .fetch(function(err, fields, entries) {
-                log.info("Import finished");
-
-                let notifContent = null;
-                if (entries.filtered && entry.filtered.length > 0) {
-                    let localizationKey = 'notification bills';
-                    let options = {smart_count: entries.filtered.length};
-                    notifContent = localization.t(localizationKey, options);
-                }
-
-                return callback(err, notifContent);
+                log('info', 'Import finished');
+                return callback(err);
         });
     }
 };
@@ -133,7 +81,7 @@ var logOut =  function(requiredFields, billInfos, data, next) {
     };
     return request(options, function(err, res, body) {
         if (err != null) {
-            log.error("Couldn't logout of Free Mobile website");
+            log('error', "Couldn't logout of Free Mobile website");
             next(err);
         }
         return next();
@@ -143,7 +91,6 @@ var logOut =  function(requiredFields, billInfos, data, next) {
 
 // Procedure to prepare the login to Free mobile website.
 var prepareLogIn = function(requiredFields, billInfos, data, next) {
-
     let homeUrl = "https://mobile.free.fr/moncompte/index.php?page=home";
     //First we need to get the connection page
     let options = {
@@ -154,7 +101,7 @@ var prepareLogIn = function(requiredFields, billInfos, data, next) {
 
     return request(options, function(err, res, body) {
         if (err != null) {
-            log.error(`Cannot connect to Free Mobile : ${homeUrl}`);
+            log('error', `Cannot connect to Free Mobile : ${homeUrl}`);
             return next(err);
         }
         let loginPageData = body;
@@ -180,7 +127,7 @@ var getImageAndIdentifyNumbers = function(requiredFields, billInfos, data, next)
     let urlAndPosition = data.imageUrlAndPosition;
     return async.map(urlAndPosition, getImageAndIdentifyNumber, function(err, results) {
         if (err != null) {
-            log.error("Coud not get or decode image");
+            log('error', "Coud not get or decode image");
             next(err);
         }
         data.conversionTable = results;
@@ -237,12 +184,12 @@ var logIn = function(requiredFields, billInfos, data, next) {
         // We login to Free Mobile
         return request(options, function(err, res, body) {
             if ((err != null) || (res.headers.location == null) || (res.statusCode !== 302)) {
-                log.error("Authentification error");
-                if (err != null) { log.error(err); }
-                if ((res.headers.location == null)) { log.error("No location"); }
-                if (res.statusCode !== 302) { log.error("No 302"); }
-                if ((requiredFields.password == null)) { log.error("No password"); }
-                if ((requiredFields.login == null)) { log.error("No login"); }
+                log('error', "Authentification error");
+                if (err != null) { log('error', err); }
+                if ((res.headers.location == null)) { log('error', "No location"); }
+                if (res.statusCode !== 302) { log('error', "No 302"); }
+                if ((requiredFields.password == null)) { log('error', "No password"); }
+                if ((requiredFields.login == null)) { log('error', "No login"); }
                 return next('bad credentials');
             }
 
@@ -258,12 +205,12 @@ var logIn = function(requiredFields, billInfos, data, next) {
                 if (err != null) {
                     return next(err);
                 }
-		// We check that there is no connection form (the statusCode is
+                // We check that there is no connection form (the statusCode is
                 // always 302 even if the credential are wrong)
                 let $ = cheerio.load(body);
                 let connectionForm = $('#form_connect');
                 if (connectionForm.length !== 0) {
-                    log.error("Authentification error");
+                    log('error', "Authentification error");
                     return next('bad credentials');
                 }
                 return next();
@@ -307,7 +254,7 @@ action=getFacture&format=dl&l=`;
     // - Import overall pdf with name YYYYMM_freemobile.pdf
 
     let isMultiline = $('div.infosConso').length > 1;
-    if (isMultiline) { log.info('Multi line detected'); }
+    if (isMultiline) { log('info', 'Multi line detected'); }
     $('div.factLigne.is-hidden').each(function() {
         let amount = $($(this).find('.montant')).text();
         amount = amount.replace('€', '');
