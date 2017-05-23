@@ -113,6 +113,14 @@ And your konnector can now be installed using the following url :
 
 git://github.com/cozy/cozy-konnector-free-mobile.git#build
 
+### Prettier
+
+We use [prettier][prettier] to format the `konnector.js` file. You can run it with:
+
+```sh
+yarn prettier
+```
+
 ### Maintainer
 
 The lead maintainers for this konnector is 
@@ -142,3 +150,4 @@ Cozy Konnector Free Mobile is developed by Cozy and distributed under the [AGPL 
 [twitter]: https://twitter.com/mycozycloud
 [webpack]: https://webpack.js.org
 [yarn]: https://yarnpkg.com
+[prettier]: https://github.com/prettier/prettier
