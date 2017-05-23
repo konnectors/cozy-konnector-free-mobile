@@ -113,12 +113,12 @@ And your konnector can now be installed using the following url :
 
 git://github.com/cozy/cozy-konnector-free-mobile.git#build
 
-### Prettier
+### Standard
 
-We use [prettier][prettier] to format the `konnector.js` file. You can run it with:
+We use [standard] to format the `konnector.js` file. You can run it with:
 
 ```sh
-yarn prettier
+yarn lint
 ```
 
 ### Maintainer
