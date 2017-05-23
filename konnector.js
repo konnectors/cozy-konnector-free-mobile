@@ -1,3 +1,4 @@
+/* global emit */
 const moment = require('moment')
 const cheerio = require('cheerio')
 const async = require('async')
@@ -53,7 +54,8 @@ module.exports = baseKonnector.createNew({
     parseBillPage,
     customFilterExisting,
     customSaveDataAndFile,
-    customLinkBankOperations
+    customLinkBankOperations,
+    logOut
   ]
 })
 
@@ -269,13 +271,12 @@ function parseBillPage (requiredFields, bills, data, next) {
     let amount = $($(this).find('.montant')).text()
     amount = amount.replace('€', '')
     amount = parseFloat(amount)
-    const data_fact_id = $(this).attr('data-fact_id')
-    const data_fact_login = $(this).attr('data-fact_login')
-    const data_fact_date = $(this).attr('data-fact_date')
-    const data_fact_multi = parseFloat($(this).attr('data-fact_multi'))
-    const data_fact_ligne = $(this).attr('data-fact_ligne')
-    const pdfUrl = `${billUrl}${data_fact_login}&id=${data_fact_id}&date=${data_fact_date}&multi=${data_fact_multi}`
-    const date = moment(data_fact_date, 'YYYYMMDD')
+    const dataFactId = $(this).attr('data-fact_id')
+    const dataFactLogin = $(this).attr('data-fact_login')
+    const dataFactDate = $(this).attr('data-fact_date')
+    const dataFactMulti = parseFloat($(this).attr('data-fact_multi'))
+    const pdfUrl = `${billUrl}${dataFactLogin}&id=${dataFactId}&date=${dataFactDate}&multi=${dataFactMulti}`
+    const date = moment(dataFactDate, 'YYYYMMDD')
 
     let bill = {
       amount,
@@ -292,7 +293,7 @@ function parseBillPage (requiredFields, bills, data, next) {
             .replace(/(\n|\r)/g, '')
             .trim()
 
-    if (isMultiline && !data_fact_multi) {
+    if (isMultiline && !dataFactMulti) {
       bill.phonenumber = number
       bill.titulaire = titulaire
     }
@@ -332,7 +333,7 @@ function getImageAndIdentifyNumber (imageInfo, callback) {
                     resultImage.getWidth() < 24 ||
                     resultImage.getHeight() < 28
                 ) {
-          callback('Wrong image size', null)
+          callback(new Error('Wrong image size'), null)
         }
         let stringcheck = ''
                 // We go through PNG image, but not on all the pixels, as the
