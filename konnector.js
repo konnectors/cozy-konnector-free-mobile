@@ -2,7 +2,7 @@
 const moment = require('moment')
 const cheerio = require('cheerio')
 const async = require('async')
-const pngjs = require('pngjs-image')
+const pngjs = require('pngjs')
 
 let request = require('request')
 
@@ -115,7 +115,7 @@ function prepareLogIn (requiredFields, billInfos, data, next) {
 }
 
 function getImageAndIdentifyNumbers (requiredFields, billInfos, data, next) {
-    // For each "position", we download the image, and identify it.
+  // For each "position", we download the image, and identify it.
   const urlAndPosition = data.imageUrlAndPosition
   async.map(urlAndPosition, getImageAndIdentifyNumber, function (
         err,
@@ -135,28 +135,28 @@ function logIn (requiredFields, billInfos, data, next) {
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
   const baseUrl = 'https://mobile.free.fr/moncompte/'
 
-    // We transcode the login entered by the user into the login accepted by the
-    // website. Each number is changed into its position
+  // We transcode the login entered by the user into the login accepted by the
+  // website. Each number is changed into its position
   const transcodedLogin = transcodeLogin(
         requiredFields.login,
         data.conversionTable
     )
-    // The login is unified (each repetition of a number in the login is
-    // deleted) to download only once the small image (like a real browser would
-    // do)
+  // The login is unified (each repetition of a number in the login is
+  // deleted) to download only once the small image (like a real browser would
+  // do)
   const uniqueLogin = unifyLogin(transcodedLogin)
 
-    // Ensure the download of the small image takes at least 4s
+  // Ensure the download of the small image takes at least 4s
   const timerDownload = Math.round(4 / uniqueLogin.length * 1000)
 
-    // Each small image is downloaded. The small image is the image downloaded
-    // when the user clicks on the image keyboard
+  // Each small image is downloaded. The small image is the image downloaded
+  // when the user clicks on the image keyboard
   async.eachSeries(uniqueLogin, getSmallImage(timerDownload), function (err) {
     if (err) {
       log('error', err)
       return next('LOGIN_FAILED')
     }
-        // As trancodedLogin is an array, it is changed into a string
+    // As trancodedLogin is an array, it is changed into a string
     let login = ''
     for (let i of Array.from(transcodedLogin)) {
       login += i
@@ -178,7 +178,7 @@ function logIn (requiredFields, billInfos, data, next) {
       }
     }
 
-        // We login to Free Mobile
+    // We login to Free Mobile
     request(options, function (err, res, body) {
       if (err || !res.headers.location || res.statusCode !== 302) {
         log('error', 'Authentification error')
@@ -213,8 +213,8 @@ function logIn (requiredFields, billInfos, data, next) {
           log('error', err)
           return next('LOGIN_FAILED')
         }
-                // We check that there is no connection form (the statusCode is
-                // always 302 even if the credential are wrong)
+        // We check that there is no connection form (the statusCode is
+        // always 302 even if the credential are wrong)
         const $ = cheerio.load(body)
         const connectionForm = $('#form_connect')
         if (connectionForm.length !== 0) {
@@ -309,8 +309,8 @@ function parseBillPage (requiredFields, bills, data, next) {
 
 function getImageAndIdentifyNumber (imageInfo, callback) {
   const baseUrl = 'https://mobile.free.fr/moncompte/'
-    // We download the sound number imageInfo.position. It is necessary to
-    // download all the sounds, like a browser would do
+  // We download the sound number imageInfo.position. It is necessary to
+  // download all the sounds, like a browser would do
   getSound(imageInfo.position, function (err) {
     if (err) {
       log('error', err)
@@ -322,28 +322,30 @@ function getImageAndIdentifyNumber (imageInfo, callback) {
       url: `${baseUrl}${imageInfo.imagePath}`,
       encoding: null
     }
-        // We dowload the image located at imageInfo.imagePath
+    // We dowload the image located at imageInfo.imagePath
     request(options, function (err, res, body) {
       if (err) {
         log('error', err)
         return callback(err, null)
       }
-      pngjs.loadImage(body, function (err, resultImage) {
-        if (
-                    resultImage.getWidth() < 24 ||
-                    resultImage.getHeight() < 28
-                ) {
-          callback(new Error('Wrong image size'), null)
+      const png = new pngjs.PNG()
+      png.parse(body)
+      png.on('error', function () {
+        callback(new Error('Invalid number image'), null)
+      })
+      png.on('parsed', function () {
+        if (this.width < 24 || this.height < 28) {
+          return callback(new Error('Wrong image size'), null)
         }
         let stringcheck = ''
-                // We go through PNG image, but not on all the pixels, as the
-                // numbers are only drawn in one specific area
+        // We go through PNG image, but not on all the pixels, as the
+        // numbers are only drawn in one specific area
         for (let x = 15; x <= 22; x++) {
           for (let y = 12; y <= 26; y++) {
-            let idx = resultImage.getIndex(x, y)
-            let green = resultImage.getGreen(idx)
-            let blue = resultImage.getBlue(idx)
-                        // We check if the pixel is "red enough"
+            let idx = (this.width * y + x) << 2
+            let green = this.data[idx + 1]
+            let blue = this.data[idx + 2]
+            // We check if the pixel is "red enough"
             if (green + blue < 450) {
               stringcheck += '1'
             } else {
@@ -375,7 +377,7 @@ function getSound (position, callback) {
 }
 
 function getNumberValue (stringcheck) {
-    // symbols contains all the digits [0-9] with 0 = white pixel, 1 = red pixel
+  // symbols contains all the digits [0-9] with 0 = white pixel, 1 = red pixel
   let symbols = [
     '001111111111110011111111111111111111111111111110000000000011110000000000011111111111111111011111111111111001111111111110', // 0
     '001110000000000001110000000000001110000000000011111111111111111111111111111111111111111111000000000000000000000000000000', // 1
@@ -392,11 +394,11 @@ function getNumberValue (stringcheck) {
   let idxDistanceMin = 10
   for (let i = 0; i <= 9; i++) {
     if (stringcheck === symbols[i]) {
-            // There is a perfect match with an element of symbols
+      // There is a perfect match with an element of symbols
       return i
     } else {
-            // As there is no perfect match with an element of symbols, we look for
-            // the closest symbol
+      // As there is no perfect match with an element of symbols, we look for
+      // the closest symbol
       let distance = 0
       for (
                 let j = 0, end = stringcheck.length - 1, asc = end >= 0;
