@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
-  "name": "konnector name",
+  "name": "Free Mobile",
   "type": "node",
-  "slug": "konnectorslug",
-  "description": "description",
+  "slug": "freemobile",
+  "description": "Get all the bills from Free Mobile",
   "source": "git://github.com/cozy/cozy-konnector-free-mobile.git",
   "fields": {
     "save_folder": {
