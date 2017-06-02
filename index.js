@@ -89909,7 +89909,7 @@ module.exports = {
 
 const cozy = __webpack_require__(42)
 const moment = __webpack_require__(0)
-const DOCTYPE = 'io.cozy.bank_operations'
+const DOCTYPE = 'io.cozy.bank.operations'
 
 module.exports = {
   displayName: 'Bank Operation',
