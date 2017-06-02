@@ -44,7 +44,7 @@
     },
     "bank": {
       "description": "Required to link bills to a bank operation",
-      "type": "io.cozy.bank_operations"
+      "type": "io.cozy.bank.operations"
     }
   },
   "developer": {
