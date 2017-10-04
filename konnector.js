@@ -480,10 +480,10 @@ function customSaveDataAndFile (requiredFields, entries, data, next) {
 }
 
 function customLinkBankOperations (requiredFields, entries, data, next) {
-  linkBankOperation({
+  linkBankOperation(entries.fetched, 'io.cozy.bills', {
     log,
     model: Bill,
-    identifier: 'free mobile',
+    identifiers: ['free mobile'],
     dateDelta: 14,
     amountDelta: 0.1
   })
