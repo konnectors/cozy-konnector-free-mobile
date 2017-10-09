@@ -74,8 +74,8 @@ function logOut (requiredFields, billInfos, data, next) {
   }
   request(options, function (err, res, body) {
     if (err) {
-      log('error', "Couldn't logout of Free Mobile website")
-      log('error', err)
+      log('info', "Couldn't logout of Free Mobile website")
+      console.log(err, 'error when could not logout from free mobile website')
       return next('UNKNOWN_ERROR')
     }
     next()
@@ -94,7 +94,7 @@ function prepareLogIn (requiredFields, billInfos, data, next) {
 
   request(options, function (err, res, body) {
     if (err) {
-      log('error', `Cannot connect to Free Mobile: ${homeUrl}`)
+      log('info', `Cannot connect to Free Mobile: ${homeUrl}`)
       return next('LOGIN_FAILED')
     }
     const loginPageData = body
@@ -122,8 +122,8 @@ function getImageAndIdentifyNumbers (requiredFields, billInfos, data, next) {
         results
     ) {
     if (err) {
-      log('error', 'Coud not get or decode image')
-      log('error', err)
+      log('info', 'Coud not get or decode image')
+      console.log(err, 'error while decoding image')
       return next('UNKNOWN_ERROR')
     }
     data.conversionTable = results
@@ -153,7 +153,8 @@ function logIn (requiredFields, billInfos, data, next) {
   // when the user clicks on the image keyboard
   async.eachSeries(uniqueLogin, getSmallImage(timerDownload), function (err) {
     if (err) {
-      log('error', err)
+      log('', err)
+      console.log(err, 'erro while transcoding key images')
       return next('LOGIN_FAILED')
     }
     // As trancodedLogin is an array, it is changed into a string
@@ -181,21 +182,20 @@ function logIn (requiredFields, billInfos, data, next) {
     // We login to Free Mobile
     request(options, function (err, res, body) {
       if (err || !res.headers.location || res.statusCode !== 302) {
-        log('error', 'Authentification error')
         if (err) {
-          log('error', err)
+          console.log(err, 'Authentication error')
         }
         if (!res.headers.location) {
-          log('error', 'No location')
+          log('info', 'No location')
         }
         if (res.statusCode !== 302) {
-          log('error', 'No 302')
+          log('info', 'No 302')
         }
         if (!requiredFields.password) {
-          log('error', 'No password')
+          log('info', 'No password')
         }
         if (!requiredFields.login) {
-          log('error', 'No login')
+          log('info', 'No login')
         }
         return next('LOGIN_FAILED')
       }
@@ -210,7 +210,7 @@ function logIn (requiredFields, billInfos, data, next) {
       }
       request(options, function (err, res, body) {
         if (err) {
-          log('error', err)
+          console.log(err, 'login error')
           return next('LOGIN_FAILED')
         }
         // We check that there is no connection form (the statusCode is
@@ -218,7 +218,7 @@ function logIn (requiredFields, billInfos, data, next) {
         const $ = cheerio.load(body)
         const connectionForm = $('#form_connect')
         if (connectionForm.length !== 0) {
-          log('error', 'Authentification error')
+          log('info', 'Authentification error')
           return next('LOGIN_FAILED')
         }
         next()
@@ -236,7 +236,7 @@ function getBillPage (requiredFields, billInfos, data, next) {
   }
   request(options, function (err, res, body) {
     if (err) {
-      log('error', err)
+      console.log(err, 'error while getting bill page')
       return next('UNKNOWN_ERROR')
     }
     data.html = body
@@ -313,7 +313,7 @@ function getImageAndIdentifyNumber (imageInfo, callback) {
   // download all the sounds, like a browser would do
   getSound(imageInfo.position, function (err) {
     if (err) {
-      log('error', err)
+      console.log(err, 'error while getting sound')
       return callback(err, null)
     }
     const options = {
@@ -325,7 +325,7 @@ function getImageAndIdentifyNumber (imageInfo, callback) {
     // We dowload the image located at imageInfo.imagePath
     request(options, function (err, res, body) {
       if (err) {
-        log('error', err)
+        console.log(err, 'error while getting sound 2')
         return callback(err, null)
       }
       const png = new pngjs.PNG()
