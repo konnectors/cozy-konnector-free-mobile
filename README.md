@@ -123,7 +123,9 @@ yarn lint
 
 ### Maintainer
 
-The lead maintainers for this konnector is 
+The lead maintainer for this konnector is @doubleface for Cozy Cloud. Before,
+it was created by @ZeHiro, with contributions from Frank Rousseau, Peltoche,
+and nicofrand.
 
 
 ### Get in touch
