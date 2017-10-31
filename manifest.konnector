@@ -11,7 +11,7 @@
     },
     "account": {
       "doctype": "io.cozy.accounts",
-      "account_type": "accounttype",
+      "account_type": "freemobile",
       "accountFormat": "login,password"
     }
   },
