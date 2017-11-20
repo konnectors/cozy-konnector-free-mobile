@@ -55736,7 +55736,7 @@ function getNumberValue (stringcheck) {
 
 function logIn (fields, token, conversionTable) {
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
-  const baseUrl = 'https://mobile.free.fr'
+  const baseUrl = 'https://mobile.free.fr/'
 
   // We transcode the login entered by the user into the login accepted by the
   // website. Each number is changed into its position
