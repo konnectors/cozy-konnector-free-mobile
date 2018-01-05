@@ -2,9 +2,9 @@ const moment = require('moment')
 const pngjs = require('pngjs')
 const bluebird = require('bluebird')
 
-const {log, BaseKonnector, saveBills, request} = require('cozy-konnector-libs')
+const {log, BaseKonnector, saveBills, requestFactory} = require('cozy-konnector-libs')
 
-let rq = request({
+let request = requestFactory({
   cheerio: true,
   json: false,
   // debug: true,
@@ -33,7 +33,7 @@ function prepareLogIn () {
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
 
   // First we need to get the connection page
-  return rq(homeUrl)
+  return request(homeUrl)
   .then($ => {
     result.imageUrlAndPosition = []
     result.token = $('input[name=token]').val()
@@ -52,7 +52,7 @@ function prepareLogIn () {
 
 function getImageAndIdentifyNumbers (urlAndPosition) {
   // For each "position", we download the image, and identify it.
-  rq = request({
+  request = requestFactory({
     cheerio: false,
     json: false
   })
@@ -70,7 +70,7 @@ function getImageAndIdentifyNumber (imageInfo) {
   // We download the sound number imageInfo.position. It is necessary to
   // download all the sounds, like a browser would do
   return getSound(imageInfo.position)
-  .then(() => rq({
+  .then(() => request({
     url: `${baseUrl}${imageInfo.imagePath}`,
     encoding: null
   }))
@@ -113,7 +113,7 @@ function getImageAndIdentifyNumber (imageInfo) {
 
 function getSound (position) {
   const baseUrl = 'https://mobile.free.fr/moncompte/'
-  return rq({
+  return request({
     url: `${baseUrl}chiffre.php?getsound=1&pos=${position}`,
     headers: {
       referer: baseUrl + 'sound/soundmanager2_flash9.swf'
@@ -214,7 +214,7 @@ function logIn (fields, token, conversionTable) {
     }
     // We login to Free Mobile
     log('info', 'POST login')
-    return rq(options)
+    return request(options)
     .catch(err => {
       log('error', 'login error after post')
       log('error', err.message)
@@ -235,13 +235,13 @@ function logIn (fields, token, conversionTable) {
       throw new Error('LOGIN_FAILED')
     }
 
-    rq = request({
+    request = requestFactory({
       cheerio: true,
       json: false
     })
 
     log('info', `Go to home ${baseUrl + res.headers.location}`)
-    return rq({
+    return request({
       url: baseUrl + res.headers.location,
       headers: {
         referer: homeUrl
@@ -263,7 +263,7 @@ function logIn (fields, token, conversionTable) {
 }
 
 function getBillPage () {
-  return rq('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
+  return request('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
 }
 
 // Parse the fetched page to extract bill data.
@@ -355,7 +355,7 @@ function unifyLogin (login) {
 function getSmallImage (timer) {
   return function (digit) {
     const baseUrl = 'https://mobile.free.fr/moncompte/'
-    return rq(`${baseUrl}chiffre.php?pos=${digit}&small=1`)
+    return request(`${baseUrl}chiffre.php?pos=${digit}&small=1`)
     .then(body => {
       return new Promise(resolve => {
         setTimeout(() => {
