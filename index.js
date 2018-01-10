@@ -56057,6 +56057,10 @@ const getTotalReimbursements = operation => {
   return operation.reimbursements.reduce((s, r) => s + r.amount, 0)
 }
 
+const logMatch = (bill, operation) => {
+  console.log('Found matching ', bill, operation)
+}
+
 // DOES NOT NEED COZY CLIENT
 const findReimbursedOperation = (bill, operations, options) => {
   if (!bill.isRefund) { return null }
@@ -56182,6 +56186,10 @@ class Linker {
 
   linkMatchingOperation (bill, operations, options) {
     const matchingOp = findMatchingOperation(bill, operations, options)
+    if (matchingOp) {
+      logMatch(bill, matchingOp)
+    }
+
     if (matchingOp) {
       if (!matchingOp) { return }
       return this.addBillToOperation(bill, matchingOp).then(() => matchingOp)
@@ -102917,10 +102925,11 @@ module.exports = (entries, fields, options = {}) => {
     return entry
   }
 
+  const originalEntries = entries
   return saveFiles(entries, fields, options)
     .then(entries => filterData(entries, DOCTYPE, options))
     .then(entries => addData(entries, DOCTYPE, options))
-    .then(entries => linkBankOperations(entries, DOCTYPE, fields, options))
+    .then(entries => linkBankOperations(originalEntries, DOCTYPE, fields, options))
 }
 
 
