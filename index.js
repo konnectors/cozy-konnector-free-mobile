@@ -64,6 +64,42 @@ function getImageAndIdentifyNumbers (urlAndPosition) {
   })
 }
 
+function recognizeNumber (pngData, imageInfo) {
+  return new Promise((resolve, reject) => {
+    const png = new pngjs.PNG()
+    png.parse(pngData)
+    png.on('error', () => {
+      reject(new Error('Invalid number image'))
+    })
+    png.on('parsed', function () {
+      if (this.width < 24 || this.height < 28) {
+        reject(new Error('Wrong image size'))
+      }
+      let stringcheck = ''
+      // We go through PNG image, but not on all the pixels, as the
+      // numbers are only drawn in one specific area
+      for (let x = 15; x <= 22; x++) {
+        for (let y = 12; y <= 26; y++) {
+          let idx = (this.width * y + x) << 2
+          let green = this.data[idx + 1]
+          let blue = this.data[idx + 2]
+          // We check if the pixel is "red enough"
+          if (green + blue < 450) {
+            stringcheck += '1'
+          } else {
+            stringcheck += '0'
+          }
+        }
+      }
+      const image = {
+        position: `${imageInfo.position}`,
+        numberValue: `${getNumberValue(stringcheck)}`
+      }
+      resolve(image)
+    })
+  })
+}
+
 function getImageAndIdentifyNumber (imageInfo) {
   const baseUrl = 'https://mobile.free.fr/moncompte/'
 
@@ -75,39 +111,7 @@ function getImageAndIdentifyNumber (imageInfo) {
     encoding: null
   }))
   .then(body => {
-    return new Promise((resolve, reject) => {
-      const png = new pngjs.PNG()
-      png.parse(body)
-      png.on('error', () => {
-        reject(new Error('Invalid number image'))
-      })
-      png.on('parsed', function () {
-        if (this.width < 24 || this.height < 28) {
-          reject(new Error('Wrong image size'))
-        }
-        let stringcheck = ''
-        // We go through PNG image, but not on all the pixels, as the
-        // numbers are only drawn in one specific area
-        for (let x = 15; x <= 22; x++) {
-          for (let y = 12; y <= 26; y++) {
-            let idx = (this.width * y + x) << 2
-            let green = this.data[idx + 1]
-            let blue = this.data[idx + 2]
-            // We check if the pixel is "red enough"
-            if (green + blue < 450) {
-              stringcheck += '1'
-            } else {
-              stringcheck += '0'
-            }
-          }
-        }
-        const image = {
-          position: `${imageInfo.position}`,
-          numberValue: `${getNumberValue(stringcheck)}`
-        }
-        resolve(image)
-      })
-    })
+    return recognizeNumber(body, imageInfo)
   })
 }
 
