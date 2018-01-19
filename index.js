@@ -25768,8 +25768,8 @@ const getDateRangeFromBill = (bill, options) => {
   const date = getOperationDateFromBill(bill, options)
 
   return {
-    minDate: subDays(date, options.minDateDelta),
-    maxDate: addDays(date, options.maxDateDelta)
+    minDate: subDays(date, options.pastWindow),
+    maxDate: addDays(date, options.futureWindow)
   }
 }
 
@@ -56580,16 +56580,17 @@ const downloadEntry = function (entry, options) {
 
       return cozy.files.create(filePromise, createFileOptions)
     })
-    .then(fileobject => {
+    .then(fileDocument => {
       // This allows us to have the warning message at the first run
-      checkMimeWithPath(fileobject.attributes.mime, fileobject.attributes.name)
-      checkFileSize(fileobject)
-      return fileobject
+      checkMimeWithPath(fileDocument.attributes.mime, fileDocument.attributes.name)
+      checkFileSize(fileDocument)
+      return fileDocument
     })
-    .then(fileobject => {
-      entry.fileobject = fileobject
-      return entry
-    })
+}
+
+const attachFileToEntry = function (entry, fileDocument) {
+  entry.fileDocument = fileDocument
+  return entry
 }
 
 const saveEntry = function (entry, options) {
@@ -56612,16 +56613,18 @@ const saveEntry = function (entry, options) {
         return cozy.files.trashById(file._id)
         .then(() => Promise.reject(new Error('BAD_DOWNLOADED_FILE')))
       }
+      return file
     })
-    .then(() => true, () => false)
-    .then(fileExists => {
-      if (fileExists) {
-        return entry
-      } else {
-        log('debug', entry)
-        log('debug', `File ${filepath} does not exist yet or is not valid`)
-        return downloadEntry(entry, options)
-      }
+    .then(file => {
+      return file
+    }, () =>  {
+      log('debug', entry)
+      log('debug', `File ${filepath} does not exist yet or is not valid`)
+      return downloadEntry(entry, options)
+    })
+    .then(file => {
+      attachFileToEntry(entry, file)
+      return entry
     })
     .then(sanitizeEntry)
     .then(entry => {
@@ -56743,7 +56746,8 @@ const { findDebitOperation, findCreditOperation } = __webpack_require__(974)
 
 const DOCTYPE_OPERATIONS = 'io.cozy.bank.operations'
 const DEFAULT_AMOUNT_DELTA = 0.001
-const DEFAULT_DATE_DELTA = 15
+const DEFAULT_PAST_WINDOW = 15
+const DEFAULT_FUTURE_WINDOW = 29
 
 class Linker {
   constructor (cozyClient) {
@@ -56872,9 +56876,8 @@ module.exports = (bills, doctype, fields, options = {}) => {
   options.minAmountDelta = options.minAmountDelta || options.amountDelta
   options.maxAmountDelta = options.maxAmountDelta || options.amountDelta
 
-  options.dateDelta = options.dateDelta || DEFAULT_DATE_DELTA
-  options.minDateDelta = options.minDateDelta || options.dateDelta
-  options.maxDateDelta = options.maxDateDelta || options.dateDelta
+  options.pastWindow = options.pastWindow || DEFAULT_PAST_WINDOW
+  options.futureWindow = options.futureWindow || DEFAULT_FUTURE_WINDOW
 
   const cozyClient = __webpack_require__(54)
   const linker = new Linker(cozyClient)
@@ -103112,10 +103115,10 @@ module.exports = (entries, fields, options = {}) => {
   options.keys = ['date', 'amount', 'vendor']
 
   options.postProcess = function (entry) {
-    if (entry.fileobject) {
-      entry.invoice = `io.cozy.files:${entry.fileobject._id}`
+    if (entry.fileDocument) {
+      entry.invoice = `io.cozy.files:${entry.fileDocument._id}`
     }
-    delete entry.fileobject
+    delete entry.fileDocument
     return entry
   }
 
