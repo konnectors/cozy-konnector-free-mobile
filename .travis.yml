@@ -22,7 +22,7 @@ cache:
   directories:
   - node_modules
 script:
-- yarn standalone
+- yarn standalone > /dev/null
 - yarn build
 after_success:
 - test $TRAVIS_BRANCH = "master" && yarn run deploy:travis -- --branch=build
