@@ -22,6 +22,10 @@ cache:
   directories:
   - node_modules
 script:
+- yarn standalone
 - yarn build
 after_success:
 - test $TRAVIS_BRANCH = "master" && yarn run deploy:travis -- --branch=build
+before_install:
+- openssl aes-256-cbc -K $encrypted_6837e0a26d3c_key -iv $encrypted_6837e0a26d3c_iv
+  -in konnector-dev-config.json.enc -out konnector-dev-config.json -d
