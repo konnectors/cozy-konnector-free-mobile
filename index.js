@@ -59574,9 +59574,6 @@ exports.write = function(png, options) {
 var hasSyncZlib = true;
 var zlib = __webpack_require__(38);
 var inflateSync = __webpack_require__(504);
-if (!zlib.deflateSync) {
-  hasSyncZlib = false;
-}
 var SyncReader = __webpack_require__(344);
 var FilterSync = __webpack_require__(505);
 var Parser = __webpack_require__(339);
@@ -59871,9 +59868,6 @@ exports.process = function(inBuffer, bitmapInfo) {
 
 var hasSyncZlib = true;
 var zlib = __webpack_require__(38);
-if (!zlib.deflateSync) {
-  hasSyncZlib = false;
-}
 var constants = __webpack_require__(84);
 var Packer = __webpack_require__(343);
 

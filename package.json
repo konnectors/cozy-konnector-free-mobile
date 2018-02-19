@@ -12,7 +12,7 @@
   "dependencies": {
     "bluebird": "3.5.1",
     "cozy-konnector-libs": "3.3.0",
-    "pngjs": "3.3.2"
+    "pngjs": "3.3.1"
   },
   "scripts": {
     "start": "node index.js",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "copy-webpack-plugin": "4.3.1",
     "git-directory-deploy": "1.5.1",
-    "standard": "10.0.3",
+    "standard": "11.0.0",
     "webpack": "3.10.0"
   }
 }
