@@ -28,7 +28,7 @@
   "devDependencies": {
     "copy-webpack-plugin": "4.5.0",
     "git-directory-deploy": "1.5.1",
-    "standard": "10.0.3",
-    "webpack": "3.10.0"
+    "standard": "11.0.0",
+    "webpack": "3.11.0"
   }
 }
