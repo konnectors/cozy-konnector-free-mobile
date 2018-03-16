@@ -1,8 +1,19 @@
+// Force sentry DSN into environment variables
+// In the future, will be set by the stack
+process.env.SENTRY_DSN =
+  process.env.SENTRY_DSN ||
+  'https://151ddd2738c745829afbed143c7b5ef0:10f0842a61c94f6cbc542de579104e86@sentry.cozycloud.cc/24'
+
 const moment = require('moment')
 const pngjs = require('pngjs')
 const bluebird = require('bluebird')
 
-const {log, BaseKonnector, saveBills, requestFactory} = require('cozy-konnector-libs')
+const {
+  log,
+  BaseKonnector,
+  saveBills,
+  requestFactory
+} = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -11,33 +22,35 @@ let request = requestFactory({
   jar: true
 })
 
-module.exports = new BaseKonnector(function fetch (fields) {
+module.exports = new BaseKonnector(function fetch(fields) {
   return prepareLogIn()
-  .then(result => {
-    return getImageAndIdentifyNumbers(result.imageUrlAndPosition)
-    .then(conversionTable => ({conversionTable, token: result.token}))
-  })
-  .then(result => logIn(fields, result.token, result.conversionTable))
-  .then(getBillPage)
-  .then(parseBillPage)
-  .then(entries => saveBills(entries, fields.folderPath, {
-    timeout: Date.now() + 60 * 1000,
-    identifiers: 'free mobile'
-  }))
+    .then(result => {
+      return getImageAndIdentifyNumbers(result.imageUrlAndPosition).then(
+        conversionTable => ({ conversionTable, token: result.token })
+      )
+    })
+    .then(result => logIn(fields, result.token, result.conversionTable))
+    .then(getBillPage)
+    .then(parseBillPage)
+    .then(entries =>
+      saveBills(entries, fields.folderPath, {
+        timeout: Date.now() + 60 * 1000,
+        identifiers: 'free mobile'
+      })
+    )
 })
 
 // Procedure to prepare the login to Free mobile website.
-function prepareLogIn () {
+function prepareLogIn() {
   log('Preparing login')
   const result = {}
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
 
   // First we need to get the connection page
-  return request(homeUrl)
-  .then($ => {
+  return request(homeUrl).then($ => {
     result.imageUrlAndPosition = []
     result.token = $('input[name=token]').val()
-    $('img[class="ident_chiffre_img pointer"]').each(function () {
+    $('img[class="ident_chiffre_img pointer"]').each(function() {
       const imagePath = $(this).attr('src')
       let position = $(this).attr('alt')
       position = position.replace('position ', '')
@@ -50,28 +63,29 @@ function prepareLogIn () {
   })
 }
 
-function getImageAndIdentifyNumbers (urlAndPosition) {
+function getImageAndIdentifyNumbers(urlAndPosition) {
   // For each "position", we download the image, and identify it.
   request = requestFactory({
     cheerio: false,
     json: false
   })
-  return bluebird.mapSeries(urlAndPosition, getImageAndIdentifyNumber)
-  .catch(err => {
-    log('error', 'Coud not get or decode image')
-    log('error', err.message)
-    throw new Error('UNKNOWN_ERROR')
-  })
+  return bluebird
+    .mapSeries(urlAndPosition, getImageAndIdentifyNumber)
+    .catch(err => {
+      log('error', 'Coud not get or decode image')
+      log('error', err.message)
+      throw new Error('UNKNOWN_ERROR')
+    })
 }
 
-function recognizeNumber (pngData, imageInfo) {
+function recognizeNumber(pngData, imageInfo) {
   return new Promise((resolve, reject) => {
     const png = new pngjs.PNG()
     png.parse(pngData)
     png.on('error', () => {
       reject(new Error('Invalid number image'))
     })
-    png.on('parsed', function () {
+    png.on('parsed', function() {
       if (this.width < 24 || this.height < 28) {
         reject(new Error('Wrong image size'))
       }
@@ -100,36 +114,37 @@ function recognizeNumber (pngData, imageInfo) {
   })
 }
 
-function getImageAndIdentifyNumber (imageInfo) {
+function getImageAndIdentifyNumber(imageInfo) {
   const baseUrl = 'https://mobile.free.fr/moncompte/'
 
   // We download the sound number imageInfo.position. It is necessary to
   // download all the sounds, like a browser would do
   return getSound(imageInfo.position)
-  .then(() => request({
-    url: `${baseUrl}${imageInfo.imagePath}`,
-    encoding: null
-  }))
-  .then(body => {
-    return recognizeNumber(body, imageInfo)
-  })
+    .then(() =>
+      request({
+        url: `${baseUrl}${imageInfo.imagePath}`,
+        encoding: null
+      })
+    )
+    .then(body => {
+      return recognizeNumber(body, imageInfo)
+    })
 }
 
-function getSound (position) {
+function getSound(position) {
   const baseUrl = 'https://mobile.free.fr/moncompte/'
   return request({
     url: `${baseUrl}chiffre.php?getsound=1&pos=${position}`,
     headers: {
       referer: baseUrl + 'sound/soundmanager2_flash9.swf'
     }
-  })
-  .catch(err => {
+  }).catch(err => {
     log('error', err.message)
     log('error', 'error while getting sound')
   })
 }
 
-function getNumberValue (stringcheck) {
+function getNumberValue(stringcheck) {
   // symbols contains all the digits [0-9] with 0 = white pixel, 1 = red pixel
   let symbols = [
     '001111111111110011111111111111111111111111111110000000000011110000000000011111111111111111011111111111111001111111111110', // 0
@@ -154,10 +169,10 @@ function getNumberValue (stringcheck) {
       // the closest symbol
       let distance = 0
       for (
-                let j = 0, end = stringcheck.length - 1, asc = end >= 0;
-                asc ? j <= end : j >= end;
-                asc ? j++ : j--
-            ) {
+        let j = 0, end = stringcheck.length - 1, asc = end >= 0;
+        asc ? j <= end : j >= end;
+        asc ? j++ : j--
+      ) {
         if (stringcheck[j] !== symbols[i][j]) {
           distance += 1
         }
@@ -171,7 +186,7 @@ function getNumberValue (stringcheck) {
   return idxDistanceMin
 }
 
-function logIn (fields, token, conversionTable) {
+function logIn(fields, token, conversionTable) {
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
   const baseUrl = 'https://mobile.free.fr/'
 
@@ -188,92 +203,92 @@ function logIn (fields, token, conversionTable) {
 
   // Each small image is downloaded. The small image is the image downloaded
   // when the user clicks on the image keyboard
-  return bluebird.each(uniqueLogin, getSmallImage(timerDownload))
-  .catch(err => {
-    log('error', err.message)
-    throw new Error('error while transcoding key images')
-  })
-  .then(() => {
-    // As trancodedLogin is an array, it is changed into a string
-    let login = ''
-    for (let i of Array.from(transcodedLogin)) {
-      login += i
-    }
-
-    let form = {
-      token,
-      login_abo: login,
-      pwd_abo: fields.password
-    }
-    let options = {
-      method: 'POST',
-      form,
-      url: homeUrl,
-      headers: {
-        referer: homeUrl
-      },
-      resolveWithFullResponse: true,
-      followAllRedirects: false,
-      simple: false
-    }
-    // We login to Free Mobile
-    log('info', 'POST login')
-    return request(options)
+  return bluebird
+    .each(uniqueLogin, getSmallImage(timerDownload))
     .catch(err => {
-      log('error', 'login error after post')
       log('error', err.message)
-      throw new Error('LOGIN_FAILED')
+      throw new Error('error while transcoding key images')
     })
-  })
-  .then(res => {
-    if (!res.headers.location || res.statusCode !== 302) {
-      if (res.statusCode !== 302) {
-        log('info', 'No 302')
+    .then(() => {
+      // As trancodedLogin is an array, it is changed into a string
+      let login = ''
+      for (let i of Array.from(transcodedLogin)) {
+        login += i
       }
-      if (!fields.password) {
-        log('info', 'No password')
-      }
-      if (!fields.login) {
-        log('info', 'No login')
-      }
-      throw new Error('LOGIN_FAILED')
-    }
 
-    request = requestFactory({
-      cheerio: true,
-      json: false
+      let form = {
+        token,
+        login_abo: login,
+        pwd_abo: fields.password
+      }
+      let options = {
+        method: 'POST',
+        form,
+        url: homeUrl,
+        headers: {
+          referer: homeUrl
+        },
+        resolveWithFullResponse: true,
+        followAllRedirects: false,
+        simple: false
+      }
+      // We login to Free Mobile
+      log('info', 'POST login')
+      return request(options).catch(err => {
+        log('error', 'login error after post')
+        log('error', err.message)
+        throw new Error('LOGIN_FAILED')
+      })
     })
+    .then(res => {
+      if (!res.headers.location || res.statusCode !== 302) {
+        if (res.statusCode !== 302) {
+          log('info', 'No 302')
+        }
+        if (!fields.password) {
+          log('info', 'No password')
+        }
+        if (!fields.login) {
+          log('info', 'No login')
+        }
+        throw new Error('LOGIN_FAILED')
+      }
 
-    log('info', `Go to home ${baseUrl + res.headers.location}`)
-    return request({
-      url: baseUrl + res.headers.location,
-      headers: {
-        referer: homeUrl
+      request = requestFactory({
+        cheerio: true,
+        json: false
+      })
+
+      log('info', `Go to home ${baseUrl + res.headers.location}`)
+      return request({
+        url: baseUrl + res.headers.location,
+        headers: {
+          referer: homeUrl
+        }
+      }).catch(err => {
+        log('error', 'login error while going to home')
+        log('error', err.message)
+        throw new Error('LOGIN_FAILED')
+      })
+    })
+    .then($ => {
+      const connectionForm = $('#form_connect')
+      if (connectionForm.length !== 0) {
+        log('info', 'Authentification error')
+        throw new Error('LOGIN_FAILED')
       }
     })
-    .catch(err => {
-      log('error', 'login error while going to home')
-      log('error', err.message)
-      throw new Error('LOGIN_FAILED')
-    })
-  })
-  .then($ => {
-    const connectionForm = $('#form_connect')
-    if (connectionForm.length !== 0) {
-      log('info', 'Authentification error')
-      throw new Error('LOGIN_FAILED')
-    }
-  })
 }
 
-function getBillPage () {
+function getBillPage() {
   return request('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
 }
 
 // Parse the fetched page to extract bill data.
-function parseBillPage ($) {
+function parseBillPage($) {
   const bills = []
-  const billUrl = 'https://mobile.free.fr/moncompte/index.php?page=suiviconso&action=getFacture&format=dl&l='
+  const billUrl =
+    'https://mobile.free.fr/moncompte/index.php?page=suiviconso&action=getFacture&format=dl&l='
 
   // We check if the account has several lines
   // If the account has one line :
@@ -286,7 +301,7 @@ function parseBillPage ($) {
   if (isMultiline) {
     log('info', 'Multi line detected')
   }
-  $('div.factLigne.is-hidden').each(function () {
+  $('div.factLigne.is-hidden').each(function() {
     let amount = $($(this).find('.montant')).text()
     amount = amount.replace('€', '')
     amount = parseFloat(amount)
@@ -304,13 +319,17 @@ function parseBillPage ($) {
       type: 'phone'
     }
 
-    const number = $(this).find('div.titulaire > span.numero').text()
-    $(this).find('div.titulaire > span.numero').remove()
+    const number = $(this)
+      .find('div.titulaire > span.numero')
+      .text()
+    $(this)
+      .find('div.titulaire > span.numero')
+      .remove()
     const titulaire = $(this)
-            .find('div.titulaire')
-            .text()
-            .replace(/(\n|\r)/g, '')
-            .trim()
+      .find('div.titulaire')
+      .text()
+      .replace(/(\n|\r)/g, '')
+      .trim()
 
     if (isMultiline && !dataFactMulti) {
       bill.phonenumber = number
@@ -327,7 +346,7 @@ function parseBillPage ($) {
   return bills
 }
 
-function transcodeLogin (login, conversionTable) {
+function transcodeLogin(login, conversionTable) {
   let transcoded = []
   for (let i of Array.from(login)) {
     for (let conversion of Array.from(conversionTable)) {
@@ -339,7 +358,7 @@ function transcodeLogin (login, conversionTable) {
   return transcoded
 }
 
-function unifyLogin (login) {
+function unifyLogin(login) {
   let unique = []
   for (let digit of Array.from(login)) {
     let initTest = true
@@ -356,11 +375,10 @@ function unifyLogin (login) {
 }
 
 // Small images are downloaded like a browser woulds do.
-function getSmallImage (timer) {
-  return function (digit) {
+function getSmallImage(timer) {
+  return function(digit) {
     const baseUrl = 'https://mobile.free.fr/moncompte/'
-    return request(`${baseUrl}chiffre.php?pos=${digit}&small=1`)
-    .then(body => {
+    return request(`${baseUrl}chiffre.php?pos=${digit}&small=1`).then(body => {
       return new Promise(resolve => {
         setTimeout(() => {
           resolve()
@@ -370,6 +388,6 @@ function getSmallImage (timer) {
   }
 }
 
-function getFileName (date) {
+function getFileName(date) {
   return `${date.format('YYYYMM')}_freemobile.pdf`
 }
