@@ -10,6 +10,10 @@
   "author": "",
   "license": "AGPL-3.0",
   "main": "./src/index.js",
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
   "scripts": {
     "start": "node ./src/index.js",
     "dev": "cozy-konnector-dev ./src/index.js",
@@ -17,6 +21,7 @@
     "standalone:record": "REPLAY=record cozy-konnector-standalone ./src/index.js",
     "standalone:replay": "REPLAY=replay cozy-konnector-standalone ./src/index.js",
     "build": "webpack",
+    "format": "prettier --write '**/*.{js,json}'",
     "lint": "standard --fix ./src/index.js",
     "deploy": "git-directory-deploy --directory build/ --branch build --repo=https://github.com/konnectors/cozy-konnector-free-mobile.git",
     "deploy:prod": "git-directory-deploy --directory build/ --branch latest --repo=https://github.com/konnectors/cozy-konnector-free-mobile.git"
@@ -29,6 +34,7 @@
   "devDependencies": {
     "copy-webpack-plugin": "4.5.1",
     "git-directory-deploy": "1.5.1",
+    "prettier": "1.11.1",
     "standard": "11.0.1",
     "webpack": "4.1.1",
     "webpack-cli": "2.0.12"
