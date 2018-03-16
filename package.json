@@ -9,26 +9,44 @@
   "keywords": [],
   "author": "",
   "license": "AGPL-3.0",
-  "dependencies": {
-    "bluebird": "3.5.1",
-    "cozy-konnector-libs": "3.3.0",
-    "pngjs": "3.3.2"
+  "main": "./src/index.js",
+  "eslintConfig": {
+    "extends": [
+      "eslint-config-cozy-app"
+    ]
+  },
+  "eslintIgnore": [
+    "build"
+  ],
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
   },
   "scripts": {
-    "start": "node index.js",
+    "start": "node ./src/index.js",
     "dev": "cozy-konnector-dev",
     "standalone": "cozy-konnector-standalone",
     "standalone:record": "REPLAY=record cozy-konnector-standalone",
     "standalone:replay": "REPLAY=replay cozy-konnector-standalone",
     "build": "webpack",
-    "lint": "standard --fix index.js",
-    "deploy": "git-directory-deploy --directory build/ --branch build --repo=https://github.com/cozy/cozy-konnector-free-mobile.git",
-    "deploy:travis": "git-directory-deploy --username Cozy --email contact@cozycloud.cc --directory build/ --repo=https://$GITHUB_TOKEN@github.com/cozy/cozy-konnector-free-mobile.git"
+    "format": "prettier --write '**/*.{js,json}'",
+    "precommit": "yarn lint",
+    "lint": "eslint .",
+    "deploy": "git-directory-deploy --directory build/ --branch build --repo=${DEPLOY_REPOSITORY:-https://$GITHUB_TOKEN@github.com/konnectors/cozy-konnector-free-mobile.git}",
+    "deploy:prod": "git-directory-deploy --directory build/ --branch latest --repo=${DEPLOY_REPOSITORY:-https://$GITHUB_TOKEN@github.com/konnectors/cozy-konnector-free-mobile.git}"
+  },
+  "dependencies": {
+    "bluebird": "3.5.1",
+    "cozy-konnector-libs": "3.3.0",
+    "pngjs": "3.3.2"
   },
   "devDependencies": {
     "copy-webpack-plugin": "4.5.1",
+    "eslint": "4.18.2",
+    "eslint-config-cozy-app": "0.4.0",
     "git-directory-deploy": "1.5.1",
-    "standard": "11.0.0",
+    "husky": "0.14.3",
+    "prettier": "1.11.1",
     "webpack": "4.1.1",
     "webpack-cli": "2.0.12"
   }
