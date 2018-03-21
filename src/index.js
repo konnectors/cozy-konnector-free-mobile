@@ -254,6 +254,8 @@ function logIn(fields, token, conversionTable) {
         throw new Error('LOGIN_FAILED')
       }
 
+      log('info', 'Successfully logged in.')
+
       request = requestFactory({
         cheerio: true,
         json: false
