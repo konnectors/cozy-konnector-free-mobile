@@ -380,7 +380,7 @@ function unifyLogin(login) {
 function getSmallImage(timer) {
   return function(digit) {
     const baseUrl = 'https://mobile.free.fr/moncompte/'
-    return request(`${baseUrl}chiffre.php?pos=${digit}&small=1`).then(body => {
+    return request(`${baseUrl}chiffre.php?pos=${digit}&small=1`).then(() => {
       return new Promise(resolve => {
         setTimeout(() => {
           resolve()
