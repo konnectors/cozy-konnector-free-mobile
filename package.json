@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "bluebird": "3.5.1",
-    "cozy-konnector-libs": "3.8.1",
+    "cozy-konnector-libs": "3.8.2",
     "pngjs": "3.3.2"
   },
   "devDependencies": {
