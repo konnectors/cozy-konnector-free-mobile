@@ -6,6 +6,8 @@ env:
     # kosssi GITHUB_TOKEN
     # to generate yours : travis encrypt GITHUB_TOKEN=<your_GITHUB_TOKEN>
     - secure: "O+g6SihchES42OVOdZ05Ok/2TAYT411thaUT2/JZOcr93xvYHs3oBjo1PxjPp4NW4kOt8VPsQtkr9ozC5FlveVu2vfewyG5dI7df06JQVhQk6Z8pGXFGoZH/1w+5NyWZoVDj/5A63KvzVCZz1ktfy2P/n2QkFfhkdSdyEsIm2xTbEA6CAdanYTi9vdkL7U4efRODGOp+JLFvDBWrmWUcn6Z5tCE3qSDwuyGNlLg2ZQEatO8feQmsKut9zMaJUiVEJgO3itQjTWaTMdUsKUwu1kEiCQUdZ3/vgSCRC7Vk5rEThKVqoP+S/qsWfu3J1aKJv4f8x/L1ApK7VoC43azpV+wmcZS0XaIqWAgX5BYX4+n5rceHuWWz5Y9C30Gn9PE8Am5OXoFLtjizkMsxlo9fKT0xvFDtFrCeGkHcd77fl//ZbXFeVVevvGSbKUMTu4PNT/5KGM+07LQ4Ysuy/KwTL/ESHarCIn5krwRJmqyWZOpMU/a9X36kW4f66yarDVYh7NJ6I64A9oZu2acEV5iGJpnfGDissyvTFoCOJLLK2e1ndk/pCscxaeBY/n/WQk72Rygbeys3R/fbV/SVN4qaeFBASZcIKP9ew/XXISSMmQupzp0Tr3BsT8b6+cAH672kvsQSwmvntvUlrCfXsZi4Rpw8zENIPUX5ZLsrcBDgBn0="
+    # REGISTRY_TOKEN
+    - secure: fPqoPVOAEvDA3yLNNq5oG/x5teu4dpA5TmysU94HnDtqhqsHlmIIGH3Qr8huUqHcBkh8VUSYLg9YBizoK0qvcdzzQxLMsDZQfBOSuldnNX+atAY7gVZ5EcYX+Gf6cKTxvo6S05N3OGx3auRarVYtIzJaPgUhxRGF1O8HMg8D2e8VWbmk1ZgvilwLnxPpczbWsmdMlc2VgbtkkpNAkKD5Q8/PG8mMVewhhFh6BmxMkZsSLsdQ/v+4gJ9ZKfh1pjcBnd2pfwbwx7dCU6obQkf5OLc/scRkSCzlSfBOaLwUXpCjqWWvGb5ZL33fDuwEfe7jHHKKjZSTqNtQ313C4hqODVJV2YSHzUYfvjfSLGGZ0o0x4VGUCivHdjmjfQOgNtANe597ZFNeSxTxiiAlEHm8LFkdgt+kuudJIoDxtjuOEim/+fzbR23w5nxozk/yGEZNSH8At4ZEdSkLlCfVauUdmcCRzHdjq0/5q+DcBqf6bysbO4ThONvVgkG+cwiYQlRFVQYgHNESE/nOJN9UDtuFdMczUNw3s/1LrTb+NgFWw4kVW6VXsiMvuQuucp0+w4SfYYNsHZZpg76ZCoQbweD6HoSUYwROhocPWGUU29FZxsy/B+w4lbOlblTcTKEsa5bTkRhKCe5dLhnoF/aM3JnXicWQD8RPpnOqIA56viXbpPw=
   matrix:
     # flo account
     # to generate yours : travis encrypt KONNECTOR_CONFIG=\'"`cat konnector-dev-config.json | tr -d '\n'`"\' -r konnectors/cozy-konnector-free-mobile
@@ -19,15 +21,15 @@ script:
   - yarn build
   - if [ $TRAVIS_SECURE_ENV_VARS = "true" ]; then yarn test; fi
 deploy:
-  - provider: script
-    repo: konnectors/cozy-konnector-free-mobile
-    skip-cleanup: true
-    script: yarn deploy
-    on:
-      branch: master
-  - provider: script
-    repo: konnectors/cozy-konnector-free-mobile
-    skip-cleanup: true
-    script: yarn deploy:prod
-    on:
-      branch: prod
+- provider: script
+  repo: konnectors/cozy-konnector-free-mobile
+  skip-cleanup: true
+  script: DEPLOY_BRANCH=build && yarn deploy && yarn cozyPublish
+  on:
+    branch: master
+- provider: script
+  repo: konnectors/cozy-konnector-free-mobile
+  skip-cleanup: true
+  script: DEPLOY_BRANCH=build && yarn deploy && yarn cozyPublish
+  on:
+    tags: true

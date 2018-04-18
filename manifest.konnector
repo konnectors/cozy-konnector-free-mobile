@@ -1,33 +1,31 @@
 {
   "version": "1.0.0",
   "name": "Free Mobile",
-  "type": "node",
+  "type": "konnector",
+  "language": "node",
   "slug": "freemobile",
-  "source": "git://github.com/cozy/cozy-konnector-free-mobile.git",
+  "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git#build",
+  "editor": "Cozy",
+  "vendor_link": "https://mobile.free.fr/",
+  "categories": ["telecom"],
+  "screenshots": [],
   "fields": {
-    "save_folder": {
-      "doctype": "io.cozy.files",
-      "type": "folder"
+    "login": {
+      "type": "text"
     },
-    "account": {
-      "doctype": "io.cozy.accounts",
-      "account_type": "freemobile",
-      "accountFormat": "login,password"
-    }
-  },
-  "locales": {
-    "fr": {
-      "description": "Récupère toutes vos factures",
-      "permissions": {
-        "bills": {
-          "description": "Utilisé pour sauvegarder les données de facturation"
-        },
-        "files": {
-          "description": "Utilisé pour sauvegarder les factures"
-        }
+    "password": {
+      "type": "password"
+    },
+    "advancedFields": {
+      "folderPath": {
+        "advanced": true,
+        "isRequired": false
       }
     }
   },
+  "data_types": [
+    "bills"
+  ],
   "permissions": {
     "bills": {
       "description": "Required to save the bills data",
@@ -48,7 +46,18 @@
     }
   },
   "developer": {
-    "name": "cozy",
-    "url": "https://github.com/cozy"
+    "name": "Cozy Cloud",
+    "url": "https://cozy.io"
+  },
+  "langs": ["fr"],
+  "locales": {
+    "fr": {
+      "short_description": "Récupérer vos données Free Mobile dans votre Cozy",
+      "long_description": "Ce fournisseur vous permettra de récupérer l'ensemble de vos factures Free Mobile dans votre Cozy."
+    },
+    "en": {
+      "short_description": "Fetch your Free Mobile data in your Cozy",
+      "long_description": "This provider will allow you to fetch all your Free Mobile bills in your Cozy."
+    }
   }
 }
