@@ -4,6 +4,7 @@
   "type": "konnector",
   "language": "node",
   "slug": "freemobile",
+  "icon": "freemobile.svg",
   "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git#build",
   "editor": "Cozy",
   "vendor_link": "https://mobile.free.fr/",
