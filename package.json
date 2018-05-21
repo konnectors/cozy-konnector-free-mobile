@@ -4,10 +4,10 @@
   "description": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cozy/cozy-konnector-free-mobile.git"
+    "url": "git+https://github.com/konnectors/cozy-konnector-free-mobile.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Cozy Cloud",
   "license": "AGPL-3.0",
   "main": "./src/index.js",
   "eslintConfig": {
@@ -22,22 +22,24 @@
     "start": "node ./src/index.js",
     "dev": "cozy-run-dev",
     "standalone": "cozy-run-standalone",
+    "test": "konitor testit .",
+    "check": "konitor check .",
     "build": "webpack",
     "precommit": "yarn lint",
     "lint": "eslint --fix .",
-    "test": "konitor testit .",
     "deploy": "git-directory-deploy --directory build/ --branch ${DEPLOY_BRANCH:-build} --repo=${DEPLOY_REPOSITORY:-https://$GITHUB_TOKEN@github.com/konnectors/cozy-konnector-free-mobile.git}",
-    "cozyPublish": "cozy-app-publish --token $REGISTRY_TOKEN --build-commit $(git rev-parse ${DEPLOY_BRANCH:-build})"
+    "cozyPublish": "cozy-app-publish --token $REGISTRY_TOKEN --build-commit $(git rev-parse ${DEPLOY_BRANCH:-build})",
+    "travisDeployKey": "./bin/generate_travis_deploy_key"
   },
   "dependencies": {
     "bluebird": "3.5.1",
-    "cozy-konnector-libs": "3.8.1",
+    "cozy-konnector-libs": "4.2.0",
     "pngjs": "3.3.3"
   },
   "devDependencies": {
     "copy-webpack-plugin": "4.5.1",
     "cozy-app-publish": "0.3.6",
-    "cozy-jobs-cli": "1.0.18",
+    "cozy-jobs-cli": "1.1.0",
     "eslint": "4.19.1",
     "eslint-config-cozy-app": "0.7.3",
     "git-directory-deploy": "1.5.1",
