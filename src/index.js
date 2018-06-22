@@ -67,7 +67,8 @@ function getImageAndIdentifyNumbers(urlAndPosition) {
   // For each "position", we download the image, and identify it.
   request = requestFactory({
     cheerio: false,
-    json: false
+    json: false,
+    jar: true
   })
   return bluebird
     .mapSeries(urlAndPosition, getImageAndIdentifyNumber)
@@ -258,7 +259,8 @@ function logIn(fields, token, conversionTable) {
 
       request = requestFactory({
         cheerio: true,
-        json: false
+        json: false,
+        jar: true
       })
 
       log('info', `Go to home ${baseUrl + res.headers.location}`)
