@@ -7,27 +7,24 @@ env:
   - GH_USER_NAME="cozy-bot"
   - DEPLOY_REPOSITORY="git@github.com:konnectors/cozy-konnector-free-mobile.git"
   - secure: IOJBrDQhgAJQS+Kb59Q2Ihkv5la0MxoCR6Iw0NQuEQAZbK6QXtKFCvIpO8GzbN5lcj53XvJ7wYBc5VmuL/1FHOSiv3MR7kBm4k1/3G4DzpTfUCGZr5lmiF50eJeemiAdOpQHF0oUUe9WLh1iEDHMKch8Byg56h/fLMp40ff3KsQ37RsV0q/AAkx7pz4pv58TBIWXuTQH0dRbrPcMBMOkjFuSNfXuOdnLMZRZg2hFURkRJXLxYEylDvR9BkvsWRmy6JhCN3XBp5X+oMWa01+yFMJLIi4JuJGAuJzIQbZTyide1gjMqYjdED5cy2npVF1hAcgTHQqLPimkld6QPN+6hjn3MyQF+GHqLRyQ7zSTetZ0mjgYQVWEzVyU3QVOD0ZfY02Uk3Doo2kV37a6a6H6ivHjuEurYYa3BXwfpsJswTG2DFQAfo0aQVkq7MUPIV1mgwwVnKnD1B3/53G/EN+hl10BzAob8x4r46kW5n+t/jrlH+fGHD/jxwYndNlHYvYrxKP+7q8jN1IpGSvudYMt6+7JD7O8ZBnRBTzduN/T4UIdI9CCSSoY5MgrI0JYzOtUajp8Hg7HLWjOtT0l7yJPH095PTG9LVgYRXsY/qKX22RiykTI8Y1jmti0Zeb0htuw5TK4PS0LWyYLo8o7jLNT1wu9rcd6rHZ4iLX8JFtylUs=
-  matrix:
-  - secure: FUhnn/1/dJ7xxvrTb3OrHc/a+PiK8hcluEmLsm6jcMzgUbnMYd3GLncAnxaJ21n7/7MQrejNTOknPnZvx7B/CW/A63DTL1wIrEugWU7UQUA5gCG+bEeIQDlgsagFXFV8VKMc+NJ6QcyLrSY9PGxWQ4sVuoA4VrNlC9SQTWd2CoijaJ/B09cjVy3Q4CVHuh08he2blgZsRjdVuPhMGYJ70N/Iu5/DVe3ENqpjpU0emktT/3H+WNwX/dTzZbUnIrVb979NRiwaQxMTZ72T9OhQHLD9XU04Nxdqk1fpfSVIUrypfAzsRo2EHN1FBEMMZ/SYsWgBmo6mJclKfPQxuioJJC34jurkzs4S8Dqfj70CvtOmkR4Hsl8wTD/9f/0wq1FW/U9nrIm/ny9XFe1ukpCwEOTjV3oITfzrqZhAUHq/bPbGfgm7G5z1YPoP66iSnUE5UV7R1A/icT6l/QHpinmDUq4VIU4k0dd4evVIJR0xd4n0iDpm0g1v1ftpEJ0ocyf9Ks3r7urecDH3AZ8ponFp+VA6q6B0BoYJrZsWfznXCB2Z0x0naVn/FlOozsKOp9vH/qffJjYsn1AKDxOuO12bzXsefmQC8wChNct5sA4JgPFiUNLTVssZpho3Oj2C4ZPwVj86zvnAtMgc0PvIcvDTLfd3iv1LRQRLag1JfihKXLM=
 cache:
   yarn: true
   directories:
   - node_modules
+branches:
+  except:
+  - build
+  - build-debug
 script:
 - yarn lint
 - yarn build
-- if [ $TRAVIS_SECURE_ENV_VARS = "true" ]; then yarn test; fi
+- yarn run check
 deploy:
 - provider: script
   skip-cleanup: true
   script: DEPLOY_BRANCH=build yarn deploy && yarn cozyPublish
   on:
     branch: master
-- provider: script
-  skip-cleanup: true
-  script: DEPLOY_BRANCH=latest yarn deploy
-  on:
-    branch: prod
 - provider: script
   skip-cleanup: true
   script: DEPLOY_BRANCH=build yarn deploy && yarn cozyPublish
