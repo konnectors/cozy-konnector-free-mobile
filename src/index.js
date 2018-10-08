@@ -200,7 +200,7 @@ function logIn(fields, token, conversionTable) {
   const uniqueLogin = unifyLogin(transcodedLogin)
 
   // Ensure the download of the small image takes at least 4s
-  const timerDownload = Math.round(4 / uniqueLogin.length * 1000)
+  const timerDownload = Math.round((4 / uniqueLogin.length) * 1000)
 
   // Each small image is downloaded. The small image is the image downloaded
   // when the user clicks on the image keyboard

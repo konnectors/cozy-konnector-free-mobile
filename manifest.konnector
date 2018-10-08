@@ -5,7 +5,7 @@
   "language": "node",
   "icon": "freemobile.svg",
   "slug": "freemobile",
-  "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git#build",
+  "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git",
   "editor": "Cozy",
   "vendor_link": "https://mobile.free.fr/",
   "categories": ["telecom"],
@@ -85,5 +85,6 @@
       }
     }
   },
-  "banksTransactionRegExp": "\\bfree mobile\\b"
+  "banksTransactionRegExp": "\\bfree mobile\\b",
+  "manifest_version": "2"
 }
