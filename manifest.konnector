@@ -1,14 +1,16 @@
 {
-  "version": "1.0.3",
+  "version": "1.1.0",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
   "icon": "freemobile.svg",
   "slug": "freemobile",
-  "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git#build",
+  "source": "git://github.com/konnectors/cozy-konnector-free-mobile.git",
   "editor": "Cozy",
   "vendor_link": "https://mobile.free.fr/",
-  "categories": ["telecom"],
+  "categories": [
+    "telecom"
+  ],
   "fields": {
     "login": {
       "type": "text"
@@ -39,14 +41,19 @@
     },
     "accounts": {
       "type": "io.cozy.accounts",
-      "verbs": ["GET"]
+      "verbs": [
+        "GET"
+      ]
     }
   },
   "developer": {
     "name": "Cozy Cloud",
     "url": "https://cozy.io"
   },
-  "langs": ["fr", "en"],
+  "langs": [
+    "fr",
+    "en"
+  ],
   "locales": {
     "fr": {
       "short_description": "Récupérer vos données Free Mobile dans votre Cozy",
@@ -85,5 +92,6 @@
       }
     }
   },
-  "banksTransactionRegExp": "\\bfree mobile\\b"
+  "banksTransactionRegExp": "\\bfree mobile\\b",
+  "manifest_version": "2"
 }
