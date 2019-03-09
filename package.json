@@ -37,7 +37,7 @@
     "bluebird": "3.5.3",
     "cozy-konnector-libs": "4.14.11",
     "moment": "2.24.0",
-    "pngjs": "3.3.3"
+    "pngjs": "3.4.0"
   },
   "devDependencies": {
     "copy-webpack-plugin": "4.6.0",
