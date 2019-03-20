@@ -35,14 +35,14 @@
   },
   "dependencies": {
     "bluebird": "3.5.3",
-    "cozy-konnector-libs": "4.14.13",
+    "cozy-konnector-libs": "4.15.1",
     "moment": "2.24.0",
     "pngjs": "3.4.0"
   },
   "devDependencies": {
     "copy-webpack-plugin": "4.6.0",
     "cozy-app-publish": "0.13.1",
-    "cozy-jobs-cli": "1.7.15",
+    "cozy-jobs-cli": "1.8.1",
     "eslint": "5.15.1",
     "eslint-config-cozy-app": "1.1.12",
     "eslint-plugin-prettier": "3.0.1",
