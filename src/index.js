@@ -8,12 +8,7 @@ const moment = require('moment')
 const pngjs = require('pngjs')
 const bluebird = require('bluebird')
 
-const {
-  log,
-  BaseKonnector,
-  saveBills,
-  requestFactory
-} = require('cozy-konnector-libs')
+const { log, BaseKonnector, requestFactory } = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -33,7 +28,7 @@ module.exports = new BaseKonnector(function fetch(fields) {
     .then(getBillPage)
     .then(parseBillPage)
     .then(entries =>
-      saveBills(entries, fields.folderPath, {
+      this.saveBills(entries, fields.folderPath, {
         timeout: Date.now() + 60 * 1000,
         identifiers: 'free mobile',
         sourceAccount: this._account._id,
@@ -322,9 +317,22 @@ function parseBillPage($) {
       amount,
       date: date.toDate(),
       vendor: 'Free Mobile',
-      type: 'phone'
+      type: 'phone',
+      fileAttributes: {
+        metadata: {
+          classification: 'invoicing',
+          datetime: date.toDate(),
+          datetimeLabel: 'issueDate',
+          contentAuthor: 'free',
+          subClassification: 'invoice',
+          categories: ['phone'],
+          issueDate: date.toDate(),
+          invoiceNumber: dataFactId,
+          contractReference: dataFactLogin,
+          isSubscription: true
+        }
+      }
     }
-
     const number = $(this)
       .find('div.titulaire > span.numero')
       .text()
