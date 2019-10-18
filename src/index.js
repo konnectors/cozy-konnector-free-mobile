@@ -42,7 +42,7 @@ function loginValidate({ login, password }) {
     throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
   }
 
-  if (password.length === 0) {
+  if (!password || password.length === 0) {
     throw new Error('LOGIN_FAILED.EMPTY_PASSWORD')
   }
 }
