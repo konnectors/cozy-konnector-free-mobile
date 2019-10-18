@@ -8,7 +8,12 @@ const moment = require('moment')
 const pngjs = require('pngjs')
 const bluebird = require('bluebird')
 
-const { log, BaseKonnector, requestFactory } = require('cozy-konnector-libs')
+const {
+  log,
+  BaseKonnector,
+  requestFactory,
+  errors
+} = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -17,47 +22,39 @@ let request = requestFactory({
   jar: true
 })
 
-module.exports = new BaseKonnector(function fetch(fields) {
-  return prepareLogIn()
-    .then(result => {
-      return getImageAndIdentifyNumbers(result.imageUrlAndPosition).then(
-        conversionTable => ({ conversionTable, token: result.token })
-      )
-    })
-    .then(result => logIn(fields, result.token, result.conversionTable))
-    .then(getBillPage)
-    .then(parseBillPage)
-    .then(entries =>
-      this.saveBills(entries, fields.folderPath, {
-        timeout: Date.now() + 60 * 1000,
-        identifiers: 'free mobile',
-        sourceAccount: this._account._id,
-        sourceAccountIdentifier: fields.login
-      })
-    )
+module.exports = new BaseKonnector(async function fetch(fields) {
+  const { imageUrlAndPosition, token } = await prepareLogIn()
+  const conversionTable = await getImageAndIdentifyNumbers(imageUrlAndPosition)
+  await logIn(fields, token, conversionTable)
+  const $ = await getBillPage()
+  const entries = await parseBillPage($)
+  await this.saveBills(entries, fields.folderPath, {
+    identifiers: 'free mobile',
+    sourceAccount: this.accountId,
+    sourceAccountIdentifier: fields.login
+  })
 })
 
 // Procedure to prepare the login to Free mobile website.
-function prepareLogIn() {
+async function prepareLogIn() {
   log('Preparing login')
   const result = {}
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
 
   // First we need to get the connection page
-  return request(homeUrl).then($ => {
-    result.imageUrlAndPosition = []
-    result.token = $('input[name=token]').val()
-    $('img[class="ident_chiffre_img pointer"]').each(function() {
-      const imagePath = $(this).attr('src')
-      let position = $(this).attr('alt')
-      position = position.replace('position ', '')
-      result.imageUrlAndPosition.push({
-        imagePath,
-        position
-      })
+  const $ = await request(homeUrl)
+  result.imageUrlAndPosition = []
+  result.token = $('input[name=token]').val()
+  $('img[class="ident_chiffre_img pointer"]').each(function() {
+    const imagePath = $(this).attr('src')
+    let position = $(this).attr('alt')
+    position = position.replace('position ', '')
+    result.imageUrlAndPosition.push({
+      imagePath,
+      position
     })
-    return result
   })
+  return result
 }
 
 function getImageAndIdentifyNumbers(urlAndPosition) {
@@ -184,9 +181,14 @@ function getNumberValue(stringcheck) {
   return idxDistanceMin
 }
 
-function logIn(fields, token, conversionTable) {
+async function logIn(fields, token, conversionTable) {
   const homeUrl = 'https://mobile.free.fr/moncompte/index.php?page=home'
-  const baseUrl = 'https://mobile.free.fr/'
+
+  request = requestFactory({
+    cheerio: true,
+    json: false,
+    jar: true
+  })
 
   // We transcode the login entered by the user into the login accepted by the
   // website. Each number is changed into its position
@@ -201,84 +203,52 @@ function logIn(fields, token, conversionTable) {
 
   // Each small image is downloaded. The small image is the image downloaded
   // when the user clicks on the image keyboard
-  return bluebird
-    .each(uniqueLogin, getSmallImage(timerDownload))
-    .catch(err => {
-      log('error', err.message)
-      throw new Error('error while transcoding key images')
-    })
-    .then(() => {
-      // As trancodedLogin is an array, it is changed into a string
-      let login = ''
-      for (let i of Array.from(transcodedLogin)) {
-        login += i
-      }
+  try {
+    await bluebird.each(uniqueLogin, getSmallImage(timerDownload))
+  } catch (err) {
+    log('error', err.message)
+    throw new Error('error while transcoding key images')
+  }
 
-      let form = {
+  // As trancodedLogin is an array, it is changed into a string
+  let login = ''
+  for (let i of Array.from(transcodedLogin)) {
+    login += i
+  }
+
+  // We login to Free Mobile
+  log('info', 'POST login')
+  let $
+  try {
+    $ = await request.post({
+      form: {
         token,
         login_abo: login,
         pwd_abo: fields.password
-      }
-      let options = {
-        method: 'POST',
-        form,
-        url: homeUrl,
-        headers: {
-          referer: homeUrl
-        },
-        resolveWithFullResponse: true,
-        followAllRedirects: false,
-        simple: false
-      }
-      // We login to Free Mobile
-      log('info', 'POST login')
-      return request(options).catch(err => {
-        log('error', 'login error after post')
-        log('error', err.message)
-        throw new Error('LOGIN_FAILED')
-      })
-    })
-    .then(res => {
-      if (!res.headers.location || res.statusCode !== 302) {
-        if (res.statusCode !== 302) {
-          log('info', 'No 302')
-        }
-        if (!fields.password) {
-          log('info', 'No password')
-        }
-        if (!fields.login) {
-          log('info', 'No login')
-        }
-        throw new Error('LOGIN_FAILED')
-      }
-
-      log('info', 'Successfully logged in.')
-
-      request = requestFactory({
-        cheerio: true,
-        json: false,
-        jar: true
-      })
-
-      log('info', `Go to home ${baseUrl + res.headers.location}`)
-      return request({
-        url: baseUrl + res.headers.location,
-        headers: {
-          referer: homeUrl
-        }
-      }).catch(err => {
-        log('error', 'login error while going to home')
-        log('error', err.message)
-        throw new Error('LOGIN_FAILED')
-      })
-    })
-    .then($ => {
-      const connectionForm = $('#form_connect')
-      if (connectionForm.length !== 0) {
-        log('info', 'Authentification error')
-        throw new Error('LOGIN_FAILED')
+      },
+      url: homeUrl,
+      headers: {
+        referer: homeUrl
       }
     })
+  } catch (err) {
+    log('error', 'error while post login')
+    log('error', err.message)
+    throw new Error(errors.VENDOR_DOWN)
+  }
+
+  const msg = $('.alert-info').text()
+  const connectionForm = $('#form_connect')
+  if (msg && msg.includes('mot de passe incorrect')) {
+    log('error', msg)
+    throw new Error(errors.LOGIN_FAILED)
+  }
+  if (connectionForm.length !== 0) {
+    log('error', 'login form still visible')
+    throw new Error(errors.LOGIN_FAILED)
+  }
+
+  log('info', 'Successfully logged in.')
 }
 
 function getBillPage() {
