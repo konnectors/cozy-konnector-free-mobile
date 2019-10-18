@@ -257,7 +257,7 @@ async function logIn(fields, token, conversionTable) {
   }
   if (connectionForm.length !== 0) {
     log('error', 'login form still visible')
-    throw new Error(errors.LOGIN_FAILED)
+    throw new Error(errors.VENDOR_DOWN)
   }
 
   log('info', 'Successfully logged in.')
