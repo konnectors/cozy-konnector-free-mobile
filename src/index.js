@@ -23,6 +23,7 @@ let request = requestFactory({
 })
 
 module.exports = new BaseKonnector(async function fetch(fields) {
+  loginValidate(fields)
   const { imageUrlAndPosition, token } = await prepareLogIn()
   const conversionTable = await getImageAndIdentifyNumbers(imageUrlAndPosition)
   await logIn(fields, token, conversionTable)
@@ -34,6 +35,17 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccountIdentifier: fields.login
   })
 })
+
+function loginValidate({ login, password }) {
+  if (!login.match(/^\d+$/)) {
+    log('error', 'detected not numerical chars')
+    throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
+  }
+
+  if (!password || password.length === 0) {
+    throw new Error('LOGIN_FAILED.EMPTY_PASSWORD')
+  }
+}
 
 // Procedure to prepare the login to Free mobile website.
 async function prepareLogIn() {
