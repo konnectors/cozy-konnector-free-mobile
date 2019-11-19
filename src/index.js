@@ -28,8 +28,8 @@ module.exports = new BaseKonnector(async function fetch(fields) {
   const conversionTable = await getImageAndIdentifyNumbers(imageUrlAndPosition)
   await logIn(fields, token, conversionTable)
   const $ = await getBillPage()
-  const entries = await parseBillPage($)
-  await this.saveBills(entries, fields.folderPath, {
+  const bills = await parseBillPage($)
+  await this.saveBills(bills, fields.folderPath, {
     identifiers: 'free mobile',
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
@@ -326,15 +326,18 @@ function parseBillPage($) {
       .text()
       .replace(/(\n|\r)/g, '')
       .trim()
-
-    if (isMultiline && !dataFactMulti) {
-      bill.phonenumber = number
-      bill.titulaire = titulaire
-    }
-
-    if (date.year() > 2011) {
-      bill.fileurl = pdfUrl
-      bill.filename = getFileName(date)
+    bill.phonenumber = number
+    bill.titulaire = titulaire
+    bill.fileurl = pdfUrl
+    bill.filename = `${date.format('YYYYMM')}_freemobile_${bill.amount.toFixed(2)}`
+      + `€_${bill.phonenumber}${bill.titulaire}.pdf`
+    if (isMultiline && dataFactMulti === 1) {
+      bill.phonenumber = 'multilignes'
+      bill.contractId = bill.phonenumber
+      bill.contractLabel = `Récapitulatifs Multilignes (${bill.titulaire})`
+    } else {
+      bill.contractId = bill.phonenumber
+      bill.contractLabel = `${bill.phonenumber.replace(/ /g,'')} (${bill.titulaire})`
     }
 
     bills.push(bill)
@@ -382,8 +385,4 @@ function getSmallImage(timer) {
       })
     })
   }
-}
-
-function getFileName(date) {
-  return `${date.format('YYYYMM')}_freemobile.pdf`
 }
