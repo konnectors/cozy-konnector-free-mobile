@@ -14,7 +14,9 @@ module.exports = async function login(fields) {
   loginValidate(fields)
   const { imageUrlAndPosition, token } = await prepareLogIn()
   const conversionTable = await getImageAndIdentifyNumbers(imageUrlAndPosition)
-  await logIn(fields, token, conversionTable)
+  // We get back the name and firstname as we can access it in POST result
+  const clientName = await logIn(fields, token, conversionTable)
+  return clientName
 }
 
 function loginValidate({ login, password }) {
@@ -241,7 +243,15 @@ async function logIn(fields, token, conversionTable) {
     throw new Error(errors.VENDOR_DOWN)
   }
 
+  // Most conservative and robust parsing as name and phone are in same div
+  const name = $('div[class="idAbonne pointer"]')
+    .first()
+    .text()
+    .replace(/\s\s+/g, ' ') // Convert in one line and mono spaced string
+    .replace(/ - [0-9]{10}/, '') // Remove trailing phone number
+    .trim()
   log('info', 'Successfully logged in.')
+  return name
 }
 
 function transcodeLogin(login, conversionTable) {

@@ -6,7 +6,12 @@ process.env.SENTRY_DSN =
 
 const moment = require('moment')
 
-const { log, BaseKonnector, requestFactory } = require('cozy-konnector-libs')
+const {
+  log,
+  BaseKonnector,
+  requestFactory,
+  cozyClient
+} = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -18,10 +23,18 @@ let request = requestFactory({
 const login = require('./login.js')
 
 module.exports = new BaseKonnector(async function fetch(fields) {
-  await login(fields)
+  const clientName = await login(fields)
+  // As login need to be successfull to reach this point, login is a valid data
+  const accountDirectoryLabel = `${clientName} (${fields.login})`
+  this._account = await ensureAccountDirectoryLabel(
+    this._account,
+    fields,
+    accountDirectoryLabel
+  )
   const $ = await getBillPage()
   const bills = await parseBillPage($)
   await this.saveBills(bills, fields.folderPath, {
+    fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
     identifiers: 'free mobile',
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
@@ -38,13 +51,7 @@ function parseBillPage($) {
   const billUrl =
     'https://mobile.free.fr/moncompte/index.php?page=suiviconso&action=getFacture&format=dl&l='
 
-  // We check if the account has several lines
-  // If the account has one line :
-  //  - Import pdfs for the line with file name = YYYYMM_freemobile.pdf
-  // If multi line :
-  //  - Import pdfs (specific) for each line with file name =
-  //    YYYYMM_freemobile_NNNNNNNNNN.pdf (NN..NN is line number)
-  //  - Import overall pdf with name YYYYMM_freemobile.pdf
+  // Set as multi line if we detect more than 1 line available
   const isMultiline = $('div.infosConso').length > 1
   if (isMultiline) {
     log('info', 'Multi line detected')
@@ -91,24 +98,54 @@ function parseBillPage($) {
       .text()
       .replace(/(\n|\r)/g, '')
       .trim()
-    bill.phonenumber = number
+    bill.phonenumber = number.replace(/ /g, '')
     bill.titulaire = titulaire
     bill.fileurl = pdfUrl
-    bill.filename =
-      `${date.format('YYYYMM')}_freemobile_${bill.amount.toFixed(2)}` +
-      `€_${bill.phonenumber}${bill.titulaire}.pdf`
+    bill.filename = `${date.format('YYYYMM')}_freemobile_${bill.amount.toFixed(
+      2
+    )}€.pdf`
+
     if (isMultiline && dataFactMulti === 1) {
-      bill.phonenumber = 'multilignes'
+      bill.phonenumber = 'multilignes' // Phone number is empty for multilignes bill
       bill.contractId = bill.phonenumber
       bill.contractLabel = `Récapitulatifs Multilignes (${bill.titulaire})`
     } else {
       bill.contractId = bill.phonenumber
-      bill.contractLabel = `${bill.phonenumber.replace(/ /g, '')} (${
-        bill.titulaire
-      })`
+      bill.contractLabel = `${bill.phonenumber} (${bill.titulaire})`
     }
 
     bills.push(bill)
   })
   return bills
+}
+
+async function ensureAccountDirectoryLabel(account, fields, label) {
+  const needLabel = !account || !account.label
+  if (needLabel) {
+    log('info', `Renaming the folder to ${label}`)
+    const newFolder = await cozyClient.files.updateAttributesByPath(
+      fields.folderPath,
+      {
+        name: label
+      }
+    )
+    fields.folderPath = newFolder.attributes.path
+
+    log('info', `Updating the folder path in the account`)
+    const newAccount = await cozyClient.data.updateAttributes(
+      'io.cozy.accounts',
+      account._id,
+      {
+        label,
+        auth: {
+          ...account.auth,
+          folderPath: fields.folderPath,
+          namePath: label
+        }
+      }
+    )
+    return newAccount
+  } else {
+    return account
+  }
 }
