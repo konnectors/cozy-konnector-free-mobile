@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
+  "version": "1.5.1",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
@@ -54,7 +54,7 @@
   "locales": {
     "fr": {
       "short_description": "Récupérer vos données Free Mobile dans votre Cozy",
-      "long_description": "Ce fournisseur vous permettra de récupérer l'ensemble de vos factures Free Mobile dans votre Cozy.",
+      "long_description": "Ce fournisseur vous permettra de récupérer l'ensemble de vos factures Free Mobile dans votre Cozy.\n\n&nbsp;\n\nVeillez à utiliser votre numéro de compte client comme identifiant",
       "permissions": {
         "bank operations": {
           "description": "Utilisé pour relier les factures à des operations bancaires"
@@ -72,7 +72,7 @@
     },
     "en": {
       "short_description": "Fetch your Free Mobile data in your Cozy",
-      "long_description": "This provider will allow you to fetch all your Free Mobile bills in your Cozy.",
+      "long_description": "This provider will allow you to fetch all your Free Mobile bills in your Cozy.\n\n&nbsp;\n\nPlease use your client number as login.",
       "permissions": {
         "bank operations": {
           "description": "Required to link bank operations to bills"
