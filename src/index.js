@@ -133,17 +133,34 @@ function parseBillPage($) {
   return bills
 }
 
+async function renameDir(fields, label) {
+  return await cozyClient.files.updateAttributesByPath(fields.folderPath, {
+    name: label
+  })
+}
+
 async function ensureAccountDirectoryLabel(account, fields, label) {
   const needLabel = !account || !account.label
   if (needLabel) {
     log('info', `Renaming the folder to ${label}`)
-    const newFolder = await cozyClient.files.updateAttributesByPath(
-      fields.folderPath,
-      {
-        name: label
+    try {
+      const newFolder = await renameDir(fields, label)
+      fields.folderPath = newFolder.attributes.path
+    } catch (e) {
+      if (e.status === 409) {
+        // We encounter a conflict when renaming a newly created directory (account re creation)
+        log(
+          'info',
+          'Conflict detected, moving file in new dir and deleting the old one'
+        )
+        await moveOldFilesToNewDir(fields, label)
+        // Try renaming a second time
+        await renameDir(fields, label)
+        // Path is already correct in a case of conflict
+      } else {
+        throw e
       }
-    )
-    fields.folderPath = newFolder.attributes.path
+    }
 
     log('info', `Updating the folder path in the account`)
     const newAccount = await cozyClient.data.updateAttributes(
@@ -162,6 +179,24 @@ async function ensureAccountDirectoryLabel(account, fields, label) {
   } else {
     return account
   }
+}
+
+async function moveOldFilesToNewDir(fields, label) {
+  const pathConflicting =
+    fields.folderPath.slice(0, fields.folderPath.lastIndexOf('/')) + '/' + label
+  const dirToDelete = await cozyClient.files.statByPath(pathConflicting)
+  const dirToKeep = await cozyClient.files.statByPath(fields.folderPath)
+  const filesToMove = await utils.queryAll('io.cozy.files', {
+    dir_id: dirToDelete._id
+  })
+  log('debug', `Moving ${filesToMove.length} files to ${dirToKeep._id}`)
+  for (const file of filesToMove) {
+    await cozyClient.files.updateAttributesById(file._id, {
+      dir_id: dirToKeep._id
+    })
+  }
+  log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
+  await cozyClient.files.destroyById(dirToDelete._id)
 }
 
 async function cleanScrapableBillsAndFiles(filesFree, billsFree) {
