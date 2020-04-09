@@ -6,13 +6,7 @@ process.env.SENTRY_DSN =
 
 const moment = require('moment')
 
-const {
-  log,
-  BaseKonnector,
-  requestFactory,
-  cozyClient,
-  utils
-} = require('cozy-konnector-libs')
+const { log, BaseKonnector, requestFactory } = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -24,35 +18,14 @@ let request = requestFactory({
 const login = require('./login.js')
 
 module.exports = new BaseKonnector(async function fetch(fields) {
-  const clientName = await login(fields)
-  // As login need to be successfull to reach this point, login is a valid data
-  const accountDirectoryLabel = `${clientName} (${fields.login})`
-
-  // Disable this function to get a degraded standalone mode working
-  // (not in cozy-client-js-stub)
-  this._account = await ensureAccountDirectoryLabel(
-    this._account,
-    fields,
-    accountDirectoryLabel
-  )
+  await login(fields)
 
   const $ = await getBillPage()
   const bills = await parseBillPage($)
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
-    identifiers: 'free mobile',
-    sourceAccount: this.accountId,
-    sourceAccountIdentifier: fields.login
+    linkBankOperations: false
   })
-  const parentDir = await cozyClient.files.statByPath(fields.folderPath)
-  const filesAndDirFree = await utils.queryAll('io.cozy.files', {
-    dir_id: parentDir._id
-  })
-  const filesFree = filesAndDirFree.filter(file => file.type === 'file') // Remove directories
-  const billsFree = await utils.queryAll('io.cozy.bills', {
-    vendor: 'Free Mobile'
-  })
-  await cleanScrapableBillsAndFiles(filesFree, billsFree)
 })
 
 function getBillPage() {
@@ -86,6 +59,7 @@ function parseBillPage($) {
       date: date.toDate(),
       vendor: 'Free Mobile',
       type: 'phone',
+      recurrence: 'monthly',
       fileAttributes: {
         metadata: {
           classification: 'invoicing',
@@ -131,122 +105,4 @@ function parseBillPage($) {
     bills.push(bill)
   })
   return bills
-}
-
-async function renameDir(fields, label) {
-  return await cozyClient.files.updateAttributesByPath(fields.folderPath, {
-    name: label
-  })
-}
-
-async function ensureAccountDirectoryLabel(account, fields, label) {
-  const needLabel = !account || !account.label
-  if (needLabel) {
-    log('info', `Renaming the folder to ${label}`)
-    try {
-      const newFolder = await renameDir(fields, label)
-      fields.folderPath = newFolder.attributes.path
-    } catch (e) {
-      if (e.status === 409) {
-        // We encounter a conflict when renaming a newly created directory (account re creation)
-        log(
-          'info',
-          'Conflict detected, moving file in new dir and deleting the old one'
-        )
-        await moveOldFilesToNewDir(fields, label)
-        // Try renaming a second time
-        await renameDir(fields, label)
-        // Path is already correct in a case of conflict
-      } else {
-        throw e
-      }
-    }
-
-    log('info', `Updating the folder path in the account`)
-    const newAccount = await cozyClient.data.updateAttributes(
-      'io.cozy.accounts',
-      account._id,
-      {
-        label,
-        auth: {
-          ...account.auth,
-          folderPath: fields.folderPath,
-          namePath: label
-        }
-      }
-    )
-    return newAccount
-  } else {
-    return account
-  }
-}
-
-async function moveOldFilesToNewDir(fields, label) {
-  const pathConflicting =
-    fields.folderPath.slice(0, fields.folderPath.lastIndexOf('/')) + '/' + label
-  const dirToDelete = await cozyClient.files.statByPath(pathConflicting)
-  const dirToKeep = await cozyClient.files.statByPath(fields.folderPath)
-  const filesToMove = await utils.queryAll('io.cozy.files', {
-    dir_id: dirToDelete._id
-  })
-  log('debug', `Moving ${filesToMove.length} files to ${dirToKeep._id}`)
-  for (const file of filesToMove) {
-    await cozyClient.files.updateAttributesById(file._id, {
-      dir_id: dirToKeep._id
-    })
-  }
-  log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
-  await cozyClient.files.destroyById(dirToDelete._id)
-}
-
-async function cleanScrapableBillsAndFiles(filesFree, billsFree) {
-  const filenamesToDelete = generate12LastOldFilename()
-  const filesDeleted = []
-  const billsToDelete = []
-  for (const file of filesFree) {
-    if (filenamesToDelete.includes(file.name)) {
-      filesDeleted.push(file)
-      // Deleting file
-      await cozyClient.files.trashById(file._id)
-      // Deleting bill
-      const bill = isABillMatch(file, billsFree)
-      if (bill) {
-        billsToDelete.push(bill)
-      }
-    }
-  }
-  // Deleting all necessary bills at once
-  await utils.batchDelete('io.cozy.bills', billsToDelete)
-}
-
-function generate12LastOldFilename() {
-  let filenameList = []
-  const datetimeNow = new Date()
-  // Warning remember january is month 0
-  const monthNow = datetimeNow.getMonth()
-  const yearNow = datetimeNow.getFullYear()
-  // Get the 12 last filename
-  for (let i = 0; i < 12; i++) {
-    let month = monthNow + 1 - i // Human number of the month aimed
-    let year = yearNow
-    if (month <= 0) {
-      month = month + 12
-      year = year - 1
-    }
-    month = ('0' + month).substr(-2) // Adding leading 0 if necessary
-    const filename = `${year}${month}_freemobile.pdf`
-    filenameList.push(filename)
-  }
-  return filenameList
-}
-
-/* Return the first bill matching the file passed
- */
-function isABillMatch(file, billsFree) {
-  for (const bill of billsFree) {
-    if (bill.invoice === `io.cozy.files:${file._id}`) {
-      return bill
-    }
-  }
-  return false
 }
