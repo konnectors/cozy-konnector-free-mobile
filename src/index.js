@@ -21,10 +21,14 @@ let request = requestFactory({
   jar: true
 })
 
-const login = require('./login.js')
+const baseUrl = 'https://mobile.free.fr'
 
 module.exports = new BaseKonnector(async function fetch(fields) {
-  const clientName = await login(fields)
+  await this.deactivateAutoSuccessfulLogin()
+  const $accountPage = await login(fields)
+  await this.notifySuccessfulLogin()
+  // Evaluating clientName
+  const clientName = extractClientName($accountPage)
   // As login need to be successfull to reach this point, login is a valid data
   const accountDirectoryLabel = `${clientName} (${fields.login})`
 
@@ -57,6 +61,55 @@ module.exports = new BaseKonnector(async function fetch(fields) {
 
 function getBillPage() {
   return request('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
+}
+
+async function login(fields) {
+  if (!fields.login.match(/^\d+$/)) {
+    log('error', 'detected not numerical chars')
+    throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
+  }
+  // Prefetching cookie
+  await request(`${baseUrl}/account/`)
+  // Login with POST
+  const $req = await request({
+    uri: `${baseUrl}/account/`,
+    method: 'POST',
+    form: {
+      'login-ident': fields.login,
+      'login-pwd': fields.password,
+      'bt-login': 1
+    }
+  })
+  // No difference found on request, so we detect login in html content
+  if (hasLogoutButton($req)) {
+    // Login button is a type a with a specific href
+    return $req
+  } else if ($req.html().includes('utilisateur ou mot de passe incorrect')) {
+    // Only display an error message in a div so we look for it
+    throw new Error('LOGIN_FAILED')
+  } else {
+    throw new Error('VENDOR_DOWN')
+  }
+}
+
+function hasLogoutButton($) {
+  let status = false
+  $('a').each((index, value) => {
+    if (
+      $(value)
+        .attr('href')
+        .includes('/account/?logout')
+    ) {
+      status = true
+    }
+  })
+  return status
+}
+
+function extractClientName($page) {
+  // Something like '   "     Jean Valjean    "  '
+  const raw = $page('.identite').text()
+  return raw.replace('"', '').trim()
 }
 
 // Parse the fetched page to extract bill data.
