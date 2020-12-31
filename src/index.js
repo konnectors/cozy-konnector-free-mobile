@@ -40,14 +40,25 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     accountDirectoryLabel
   )
 
-  const $ = await getBillPage()
-  const bills = await parseBillPage($)
+  const otherLines = await extractOtherLines($accountPage)
+  log('info', `Found ${1 + otherLines.length} lines in total`)
+  log('info', 'Extract bills from main line')
+  let bills = await parseBills($accountPage)
+  for (const line of otherLines) {
+    log('info', `Extract additionnal line`)
+    // Switch account
+    const $otherPage = await request({ uri: `${baseUrl}/account/${line}` })
+    // Parsing bills
+    bills = bills.concat(await parseBills($otherPage))
+  }
+
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
     identifiers: 'free mobile',
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
   })
+
   const parentDir = await cozyClient.files.statByPath(fields.folderPath)
   const filesAndDirFree = await utils.queryAll('io.cozy.files', {
     dir_id: parentDir._id
@@ -58,10 +69,6 @@ module.exports = new BaseKonnector(async function fetch(fields) {
   })
   await cleanScrapableBillsAndFiles(filesFree, billsFree)
 })
-
-function getBillPage() {
-  return request('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
-}
 
 async function login(fields) {
   if (!fields.login.match(/^\d+$/)) {
@@ -112,31 +119,57 @@ function extractClientName($page) {
   return raw.replace('"', '').trim()
 }
 
-// Parse the fetched page to extract bill data.
-function parseBillPage($) {
-  const bills = []
-  const billUrl =
-    'https://mobile.free.fr/moncompte/index.php?page=suiviconso&action=getFacture&format=dl&l='
-
-  // Set as multi line if we detect more than 1 line available
-  const isMultiline = $('div.infosConso').length > 1
-  if (isMultiline) {
-    log('info', 'Multi line detected')
+function extractOtherLines($) {
+  const liList = Array.from($('li.user'))
+  // Remove line already prompted
+  liList.shift()
+  // Construct link array
+  const otherLines = []
+  for (const line of liList) {
+    otherLines.push(
+      $(line)
+        .find('a')
+        .attr('href')
+    )
   }
-  $('div.factLigne.is-hidden').each(function() {
-    let amount = $($(this).find('.montant')).text()
-    amount = amount.replace('€', '')
-    amount = parseFloat(amount)
-    const dataFactId = $(this).attr('data-fact_id')
-    const dataFactLogin = $(this).attr('data-fact_login')
-    const dataFactDate = $(this).attr('data-fact_date')
-    const dataFactMulti = parseFloat($(this).attr('data-fact_multi'))
-    const pdfUrl = `${billUrl}${dataFactLogin}&id=${dataFactId}&date=${dataFactDate}&multi=${dataFactMulti}`
-    const date = moment(dataFactDate, 'YYYYMMDD')
+  return otherLines
+}
 
-    let bill = {
+// Parse the account page to extract bill data.
+function parseBills($) {
+  const bills = []
+  const titulaire = $('div.identite')
+    .text()
+    .trim()
+  const tabLines = Array.from($('div.table-facture').find('div.grid-l'))
+  for (let line of tabLines) {
+    const amount = parseFloat(
+      $(line)
+        .find('div.amount')
+        .text()
+        .trim()
+        .replace('€', '')
+    )
+    const url = $(line)
+      .find('div.download > a')
+      .attr('href')
+    const date = moment(url.match(/&date=([0-9]{8})/)[1], 'YYYYMMDD')
+    const contractId = url.match(/&l=([0-9]*)/)[1]
+    const invoiceId = url.match(/&id=([0-9abcdef]*)/)[1]
+    const phoneNumber = $(line)
+      .find('div.date')
+      .text()
+      .trim()
+      .split('-')[0]
+      .replace(/ /g, '')
+    const bill = {
       amount,
+      currency: 'EUR',
+      fileurl: baseUrl + url,
+      filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
       date: date.toDate(),
+      contractId: phoneNumber,
+      contractLabel: `${phoneNumber} (${titulaire})`,
       vendor: 'Free Mobile',
       type: 'phone',
       fileAttributes: {
@@ -148,41 +181,14 @@ function parseBillPage($) {
           subClassification: 'invoice',
           categories: ['phone'],
           issueDate: date.toDate(),
-          invoiceNumber: dataFactId,
-          contractReference: dataFactLogin,
+          invoiceNumber: invoiceId,
+          contractReference: contractId,
           isSubscription: true
         }
       }
     }
-    const number = $(this)
-      .find('div.titulaire > span.numero')
-      .text()
-    $(this)
-      .find('div.titulaire > span.numero')
-      .remove()
-    const titulaire = $(this)
-      .find('div.titulaire')
-      .text()
-      .replace(/(\n|\r)/g, '')
-      .trim()
-    bill.phonenumber = number.replace(/ /g, '')
-    bill.titulaire = titulaire
-    bill.fileurl = pdfUrl
-    bill.filename = `${date.format('YYYYMM')}_freemobile_${bill.amount.toFixed(
-      2
-    )}€.pdf`
-
-    if (isMultiline && dataFactMulti === 1) {
-      bill.phonenumber = 'multilignes' // Phone number is empty for multilignes bill
-      bill.contractId = bill.phonenumber
-      bill.contractLabel = `Récapitulatifs Multilignes (${bill.titulaire})`
-    } else {
-      bill.contractId = bill.phonenumber
-      bill.contractLabel = `${bill.phonenumber} (${bill.titulaire})`
-    }
-
     bills.push(bill)
-  })
+  }
   return bills
 }
 
