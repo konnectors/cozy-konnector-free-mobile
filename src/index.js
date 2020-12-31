@@ -58,16 +58,6 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
   })
-
-  const parentDir = await cozyClient.files.statByPath(fields.folderPath)
-  const filesAndDirFree = await utils.queryAll('io.cozy.files', {
-    dir_id: parentDir._id
-  })
-  const filesFree = filesAndDirFree.filter(file => file.type === 'file') // Remove directories
-  const billsFree = await utils.queryAll('io.cozy.bills', {
-    vendor: 'Free Mobile'
-  })
-  await cleanScrapableBillsAndFiles(filesFree, billsFree)
 })
 
 async function login(fields) {
@@ -256,56 +246,4 @@ async function moveOldFilesToNewDir(fields, label) {
   }
   log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
   await cozyClient.files.destroyById(dirToDelete._id)
-}
-
-async function cleanScrapableBillsAndFiles(filesFree, billsFree) {
-  const filenamesToDelete = generate12LastOldFilename()
-  const filesDeleted = []
-  const billsToDelete = []
-  for (const file of filesFree) {
-    if (filenamesToDelete.includes(file.name)) {
-      filesDeleted.push(file)
-      // Deleting file
-      await cozyClient.files.trashById(file._id)
-      // Deleting bill
-      const bill = isABillMatch(file, billsFree)
-      if (bill) {
-        billsToDelete.push(bill)
-      }
-    }
-  }
-  // Deleting all necessary bills at once
-  await utils.batchDelete('io.cozy.bills', billsToDelete)
-}
-
-function generate12LastOldFilename() {
-  let filenameList = []
-  const datetimeNow = new Date()
-  // Warning remember january is month 0
-  const monthNow = datetimeNow.getMonth()
-  const yearNow = datetimeNow.getFullYear()
-  // Get the 12 last filename
-  for (let i = 0; i < 12; i++) {
-    let month = monthNow + 1 - i // Human number of the month aimed
-    let year = yearNow
-    if (month <= 0) {
-      month = month + 12
-      year = year - 1
-    }
-    month = ('0' + month).substr(-2) // Adding leading 0 if necessary
-    const filename = `${year}${month}_freemobile.pdf`
-    filenameList.push(filename)
-  }
-  return filenameList
-}
-
-/* Return the first bill matching the file passed
- */
-function isABillMatch(file, billsFree) {
-  for (const bill of billsFree) {
-    if (bill.invoice === `io.cozy.files:${file._id}`) {
-      return bill
-    }
-  }
-  return false
 }
