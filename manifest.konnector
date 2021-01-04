@@ -108,5 +108,10 @@
     }
   },
   "banksTransactionRegExp": "\\bfree mobile\\b",
+  "features": [
+    "LOGIN_OK",
+    "METADATA_DEDUP",
+    "BILLS"
+  ],
   "manifest_version": "2"
 }
