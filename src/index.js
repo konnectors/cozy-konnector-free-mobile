@@ -6,7 +6,7 @@ process.env.SENTRY_DSN =
 
 const moment = require('moment')
 
-const { log, BaseKonnector, requestFactory } = require('cozy-konnector-libs')
+const { log, BaseKonnector, requestFactory, utils, cozyClient } = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
@@ -15,48 +15,146 @@ let request = requestFactory({
   jar: true
 })
 
-const login = require('./login.js')
+const baseUrl = 'https://mobile.free.fr'
 
 module.exports = new BaseKonnector(async function fetch(fields) {
-  await login(fields)
+  await this.deactivateAutoSuccessfulLogin()
+  const $accountPage = await login(fields)
+  await this.notifySuccessfulLogin()
+  // Evaluating clientName
+  const clientName = extractClientName($accountPage)
+  // As login need to be successfull to reach this point, login is a valid data
+  const accountDirectoryLabel = `${clientName} (${fields.login})`
 
-  const $ = await getBillPage()
-  const bills = await parseBillPage($)
+  // Disable this function to get a degraded standalone mode working
+  // (not in cozy-client-js-stub)
+  this._account = await ensureAccountDirectoryLabel(
+    this._account,
+    fields,
+    accountDirectoryLabel
+  )
+
+  const otherLines = await extractOtherLines($accountPage)
+  log('info', `Found ${1 + otherLines.length} lines in total`)
+  log('info', 'Extract bills from main line')
+  let bills = await parseBills($accountPage)
+  for (const line of otherLines) {
+    log('info', `Extract additionnal line`)
+    // Switch account
+    const $otherPage = await request({ uri: `${baseUrl}/account/${line}` })
+    // Parsing bills
+    bills = bills.concat(await parseBills($otherPage))
+  }
+
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
-    linkBankOperations: false
+    linkBankOperations: false,
+    identifiers: 'free mobile',
+    sourceAccount: this.accountId,
+    sourceAccountIdentifier: fields.login
   })
 })
 
-function getBillPage() {
-  return request('https://mobile.free.fr/moncompte/index.php?page=suiviconso')
+async function login(fields) {
+  if (!fields.login.match(/^\d+$/)) {
+    log('error', 'detected not numerical chars')
+    throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
+  }
+  // Prefetching cookie
+  await request(`${baseUrl}/account/`)
+  // Login with POST
+  const $req = await request({
+    uri: `${baseUrl}/account/`,
+    method: 'POST',
+    form: {
+      'login-ident': fields.login,
+      'login-pwd': fields.password,
+      'bt-login': 1
+    }
+  })
+  // No difference found on request, so we detect login in html content
+  if (hasLogoutButton($req)) {
+    // Login button is a type a with a specific href
+    return $req
+  } else if ($req.html().includes('utilisateur ou mot de passe incorrect')) {
+    // Only display an error message in a div so we look for it
+    throw new Error('LOGIN_FAILED')
+  } else {
+    throw new Error('VENDOR_DOWN')
+  }
 }
 
-// Parse the fetched page to extract bill data.
-function parseBillPage($) {
-  const bills = []
-  const billUrl =
-    'https://mobile.free.fr/moncompte/index.php?page=suiviconso&action=getFacture&format=dl&l='
+function hasLogoutButton($) {
+  let status = false
+  $('a').each((index, value) => {
+    if (
+      $(value)
+        .attr('href')
+        .includes('/account/?logout')
+    ) {
+      status = true
+    }
+  })
+  return status
+}
 
-  // Set as multi line if we detect more than 1 line available
-  const isMultiline = $('div.infosConso').length > 1
-  if (isMultiline) {
-    log('info', 'Multi line detected')
+function extractClientName($page) {
+  // Something like '   "     Jean Valjean    "  '
+  const raw = $page('.identite').text()
+  return raw.replace('"', '').trim()
+}
+
+function extractOtherLines($) {
+  const liList = Array.from($('li.user'))
+  // Remove line already prompted
+  liList.shift()
+  // Construct link array
+  const otherLines = []
+  for (const line of liList) {
+    otherLines.push(
+      $(line)
+        .find('a')
+        .attr('href')
+    )
   }
-  $('div.factLigne.is-hidden').each(function() {
-    let amount = $($(this).find('.montant')).text()
-    amount = amount.replace('€', '')
-    amount = parseFloat(amount)
-    const dataFactId = $(this).attr('data-fact_id')
-    const dataFactLogin = $(this).attr('data-fact_login')
-    const dataFactDate = $(this).attr('data-fact_date')
-    const dataFactMulti = parseFloat($(this).attr('data-fact_multi'))
-    const pdfUrl = `${billUrl}${dataFactLogin}&id=${dataFactId}&date=${dataFactDate}&multi=${dataFactMulti}`
-    const date = moment(dataFactDate, 'YYYYMMDD')
+  return otherLines
+}
 
-    let bill = {
+// Parse the account page to extract bill data.
+function parseBills($) {
+  const bills = []
+  const titulaire = $('div.identite')
+    .text()
+    .trim()
+  const tabLines = Array.from($('div.table-facture').find('div.grid-l'))
+  for (let line of tabLines) {
+    const amount = parseFloat(
+      $(line)
+        .find('div.amount')
+        .text()
+        .trim()
+        .replace('€', '')
+    )
+    const url = $(line)
+      .find('div.download > a')
+      .attr('href')
+    const date = moment(url.match(/&date=([0-9]{8})/)[1], 'YYYYMMDD')
+    const contractId = url.match(/&l=([0-9]*)/)[1]
+    const invoiceId = url.match(/&id=([0-9abcdef]*)/)[1]
+    const phoneNumber = $(line)
+      .find('div.date')
+      .text()
+      .trim()
+      .split('-')[0]
+      .replace(/ /g, '')
+    const bill = {
       amount,
+      currency: 'EUR',
+      fileurl: baseUrl + url,
+      filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
       date: date.toDate(),
+      contractId: phoneNumber,
+      contractLabel: `${phoneNumber} (${titulaire})`,
       vendor: 'Free Mobile',
       type: 'phone',
       recurrence: 'monthly',
@@ -69,40 +167,79 @@ function parseBillPage($) {
           subClassification: 'invoice',
           categories: ['phone'],
           issueDate: date.toDate(),
-          invoiceNumber: dataFactId,
-          contractReference: dataFactLogin,
+          invoiceNumberV2: invoiceId,
+          contractReference: contractId,
           isSubscription: true
         }
       }
     }
-    const number = $(this)
-      .find('div.titulaire > span.numero')
-      .text()
-    $(this)
-      .find('div.titulaire > span.numero')
-      .remove()
-    const titulaire = $(this)
-      .find('div.titulaire')
-      .text()
-      .replace(/(\n|\r)/g, '')
-      .trim()
-    bill.phonenumber = number.replace(/ /g, '')
-    bill.titulaire = titulaire
-    bill.fileurl = pdfUrl
-    bill.filename = `${date.format('YYYYMM')}_freemobile_${bill.amount.toFixed(
-      2
-    )}€.pdf`
+    bills.push(bill)
+  }
+  return bills
+}
 
-    if (isMultiline && dataFactMulti === 1) {
-      bill.phonenumber = 'multilignes' // Phone number is empty for multilignes bill
-      bill.contractId = bill.phonenumber
-      bill.contractLabel = `Récapitulatifs Multilignes (${bill.titulaire})`
-    } else {
-      bill.contractId = bill.phonenumber
-      bill.contractLabel = `${bill.phonenumber} (${bill.titulaire})`
+async function renameDir(fields, label) {
+  return await cozyClient.files.updateAttributesByPath(fields.folderPath, {
+    name: label
+  })
+}
+
+async function ensureAccountDirectoryLabel(account, fields, label) {
+  const needLabel = !account || !account.label
+  if (needLabel) {
+    log('info', `Renaming the folder to ${label}`)
+    try {
+      const newFolder = await renameDir(fields, label)
+      fields.folderPath = newFolder.attributes.path
+    } catch (e) {
+      if (e.status === 409) {
+        // We encounter a conflict when renaming a newly created directory (account re creation)
+        log(
+          'info',
+          'Conflict detected, moving file in new dir and deleting the old one'
+        )
+        await moveOldFilesToNewDir(fields, label)
+        // Try renaming a second time
+        await renameDir(fields, label)
+        // Path is already correct in a case of conflict
+      } else {
+        throw e
+      }
     }
 
-    bills.push(bill)
+    log('info', `Updating the folder path in the account`)
+    const newAccount = await cozyClient.data.updateAttributes(
+      'io.cozy.accounts',
+      account._id,
+      {
+        label,
+        auth: {
+          ...account.auth,
+          folderPath: fields.folderPath,
+          namePath: label
+        }
+      }
+    )
+    return newAccount
+  } else {
+    return account
+  }
+}
+
+async function moveOldFilesToNewDir(fields, label) {
+  const pathConflicting =
+    fields.folderPath.slice(0, fields.folderPath.lastIndexOf('/')) + '/' + label
+  const dirToDelete = await cozyClient.files.statByPath(pathConflicting)
+  const dirToKeep = await cozyClient.files.statByPath(fields.folderPath)
+  const filesToMove = await utils.queryAll('io.cozy.files', {
+    dir_id: dirToDelete._id
   })
-  return bills
+  log('debug', `Moving ${filesToMove.length} files to ${dirToKeep._id}`)
+  for (const file of filesToMove) {
+    await cozyClient.files.updateAttributesById(file._id, {
+      dir_id: dirToKeep._id
+    })
+  }
+  log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
+  await cozyClient.files.destroyById(dirToDelete._id)
 }
