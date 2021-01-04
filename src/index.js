@@ -6,7 +6,13 @@ process.env.SENTRY_DSN =
 
 const moment = require('moment')
 
-const { log, BaseKonnector, requestFactory, utils, cozyClient } = require('cozy-konnector-libs')
+const {
+  log,
+  BaseKonnector,
+  requestFactory,
+  utils,
+  cozyClient
+} = require('cozy-konnector-libs')
 
 let request = requestFactory({
   cheerio: true,
