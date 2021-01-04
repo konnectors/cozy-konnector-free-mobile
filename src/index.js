@@ -171,7 +171,7 @@ function parseBills($) {
           subClassification: 'invoice',
           categories: ['phone'],
           issueDate: date.toDate(),
-          invoiceNumber: invoiceId,
+          invoiceNumberV2: invoiceId,
           contractReference: contractId,
           isSubscription: true
         }
