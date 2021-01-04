@@ -1,5 +1,5 @@
 {
-  "version": "1.8.0",
+  "version": "1.8.1",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
@@ -108,5 +108,10 @@
     }
   },
   "banksTransactionRegExp": "\\bfree mobile\\b",
+  "features": [
+    "LOGIN_OK",
+    "METADATA_DEDUP",
+    "BILLS"
+  ],
   "manifest_version": "2"
 }
