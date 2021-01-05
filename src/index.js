@@ -175,7 +175,8 @@ function parseBills($) {
           issueDate: date.toDate(),
           invoiceNumberV2: invoiceId,
           contractReference: contractId,
-          isSubscription: true
+          isSubscription: true,
+          carbonCopy: true
         }
       }
     }
