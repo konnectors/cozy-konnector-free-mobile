@@ -121,7 +121,8 @@
     "LOGIN_OK",
     "METADATA_DEDUP",
     "BILLS",
-    "CARBON_COPY"
+    "CARBON_COPY",
+    "DOC_QUALIFICATION_V2"
   ],
   "manifest_version": "2"
 }

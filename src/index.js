@@ -14,6 +14,10 @@ const {
   cozyClient
 } = require('cozy-konnector-libs')
 
+// Importing models to get qualification by label
+const models = cozyClient.new.models
+const { Qualification } = models.document
+
 let request = requestFactory({
   cheerio: true,
   json: false,
@@ -166,17 +170,15 @@ function parseBills($) {
       recurrence: 'monthly',
       fileAttributes: {
         metadata: {
-          classification: 'invoicing',
           datetime: date.toDate(),
           datetimeLabel: 'issueDate',
           contentAuthor: 'free',
-          subClassification: 'invoice',
-          categories: ['phone'],
           issueDate: date.toDate(),
           invoiceNumberV2: invoiceId,
           contractReference: contractId,
           isSubscription: true,
-          carbonCopy: true
+          carbonCopy: true,
+          qualification: Qualification.getByLabel('phone_invoice')
         }
       }
     }
