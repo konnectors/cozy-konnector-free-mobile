@@ -44,18 +44,16 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     accountDirectoryLabel
   )
 
-  const otherLines = await extractOtherLines($accountPage)
-  log('info', `Found ${1 + otherLines.length} lines in total`)
-  log('info', 'Extract bills from main line')
-  let bills = await parseBills($accountPage)
-  for (const line of otherLines) {
-    log('info', `Extract additionnal line`)
+  const lines = await extractLines($accountPage)
+  log('info', `Found ${lines.length} lines in total`)
+  let bills = [] //await parseBills($accountPage)
+  for (const line of lines) {
+    log('info', `Extract line number ${lines.indexOf(line)}`)
     // Switch account
-    const $otherPage = await request({ uri: `${baseUrl}/account/${line}` })
+    const $otherPage = await request({ uri: `${baseUrl}/account/${line[1]}` })
     // Parsing bills
-    bills = bills.concat(await parseBills($otherPage))
+    bills = bills.concat(await parseBills($otherPage, line[0]))
   }
-
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
     linkBankOperations: false,
@@ -114,28 +112,31 @@ function extractClientName($page) {
   return raw.replace('"', '').trim()
 }
 
-function extractOtherLines($) {
+function extractLines($) {
   const liList = Array.from($('li.user'))
-  // Remove line already prompted
-  liList.shift()
   // Construct link array
-  const otherLines = []
+  const lines = []
   for (const line of liList) {
-    otherLines.push(
+    lines.push([
+      $(line)
+        .text()
+        .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
+        .replace(/ /g, ''),
       $(line)
         .find('a')
         .attr('href')
-    )
+    ])
   }
-  return otherLines
+  return lines
 }
 
 // Parse the account page to extract bill data.
-function parseBills($) {
+function parseBills($, secondaryLinePhoneNumber) {
   const bills = []
   const titulaire = $('div.identite')
     .text()
     .trim()
+  const phoneNumber = secondaryLinePhoneNumber?secondaryLinePhoneNumber:$('p.table-sub-title').text().trim().replace(/ /g, '')
   const tabLines = Array.from($('div.table-facture').find('div.grid-l'))
   for (let line of tabLines) {
     const amount = parseFloat(
@@ -151,12 +152,6 @@ function parseBills($) {
     const date = moment(url.match(/&date=([0-9]{8})/)[1], 'YYYYMMDD')
     const contractId = url.match(/&l=([0-9]*)/)[1]
     const invoiceId = url.match(/&id=([0-9abcdef]*)/)[1]
-    const phoneNumber = $(line)
-      .find('div.date')
-      .text()
-      .trim()
-      .split('-')[0]
-      .replace(/ /g, '')
     const bill = {
       amount,
       currency: 'EUR',
