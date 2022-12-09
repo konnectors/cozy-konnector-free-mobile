@@ -5,6 +5,7 @@ process.env.SENTRY_DSN =
   'https://151ddd2738c745829afbed143c7b5ef0:10f0842a61c94f6cbc542de579104e86@sentry.cozycloud.cc/24'
 
 const moment = require('moment')
+moment.locale('fr')
 
 const {
   log,
@@ -45,15 +46,21 @@ module.exports = new BaseKonnector(async function fetch(fields) {
   )
 
   const lines = await extractLines($accountPage)
-  log('info', `Found ${lines.length} lines in total`)
-  let bills = [] //await parseBills($accountPage)
-  for (const line of lines) {
-    log('info', `Extract line number ${lines.indexOf(line)}`)
-    // Switch account
-    const $otherPage = await request({ uri: `${baseUrl}/account/${line[1]}` })
-    // Parsing bills
-    bills = bills.concat(await parseBills($otherPage, line[0]))
+  let bills = []
+  if (lines.length < 1) {
+    log('info', `Found 1 lines in total`)
+    bills = await parseBills($accountPage)
+  } else {
+    log('info', `Found ${lines.length} lines in total`)
+    for (const line of lines) {
+      log('info', `Extract line number ${lines.indexOf(line)}`)
+      // Switch account
+      const $otherPage = await request({ uri: `${baseUrl}/account/${line[1]}` })
+      // Parsing bills
+      bills = bills.concat(await parseBills($otherPage, line[0]))
+    }
   }
+
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
     linkBankOperations: false,
@@ -95,11 +102,7 @@ async function login(fields) {
 function hasLogoutButton($) {
   let status = false
   $('a').each((index, value) => {
-    if (
-      $(value)
-        .attr('href')
-        .includes('/account/?logout')
-    ) {
+    if ($(value).attr('href').includes('/account/?logout')) {
       status = true
     }
   })
@@ -118,13 +121,13 @@ function extractLines($) {
   const lines = []
   for (const line of liList) {
     lines.push([
+      // Phone Number
       $(line)
         .text()
         .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
         .replace(/ /g, ''),
-      $(line)
-        .find('a')
-        .attr('href')
+      // Account link
+      $(line).find('a').attr('href')
     ])
   }
   return lines
@@ -133,23 +136,32 @@ function extractLines($) {
 // Parse the account page to extract bill data.
 function parseBills($, secondaryLinePhoneNumber) {
   const bills = []
-  const titulaire = $('div.identite')
-    .text()
-    .trim()
-  const phoneNumber = secondaryLinePhoneNumber?secondaryLinePhoneNumber:$('p.table-sub-title').text().trim().replace(/ /g, '')
+  const titulaire = $('div.identite').text().trim()
+  let phoneNumber = secondaryLinePhoneNumber
+    ? secondaryLinePhoneNumber
+    : $('p.table-sub-title').text().trim().replace(/ /g, '')
   const tabLines = Array.from($('div.table-facture').find('div.grid-l'))
+
   for (let line of tabLines) {
     const amount = parseFloat(
-      $(line)
-        .find('div.amount')
-        .text()
-        .trim()
-        .replace('€', '')
+      $(line).find('div.amount').text().trim().replace('€', '')
     )
-    const url = $(line)
-      .find('div.download > a')
-      .attr('href')
-    const date = moment(url.match(/&date=([0-9]{8})/)[1], 'YYYYMMDD')
+
+    const url = $(line).find('div.download > a').attr('href')
+    const type = url.match(/facture=([a-z]*)/)[1]
+    let date
+    if (type == 'pdf') {
+      date = moment(url.match(/date=([0-9]{8})/)[1], 'YYYYMMDD')
+    } else if (type == 'pdfrecap') {
+      // When bills is Multiline, the date in url is always the date of the day
+      // So we extract the date from the line of the array of bills
+
+      const dateString = $(line).find('div.date').text().trim()
+      date = moment(dateString, 'MMMM YYYY')
+    } else {
+      log('warn', 'Impossible to match a date for this bill')
+      continue
+    }
     const contractId = url.match(/&l=([0-9]*)/)[1]
     const invoiceId = url.match(/&id=([0-9abcdef]*)/)[1]
     const bill = {
@@ -157,18 +169,20 @@ function parseBills($, secondaryLinePhoneNumber) {
       currency: 'EUR',
       fileurl: baseUrl + url,
       filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
-      date: date.toDate(),
-      contractId: phoneNumber,
-      contractLabel: `${phoneNumber} (${titulaire})`,
+      date: date.utc().toDate(),
+      contractId: type == 'pdfrecap' ? 'Multiligne' : phoneNumber,
+      contractLabel: `${
+        type == 'pdfrecap' ? 'Multiligne' : phoneNumber
+      } (${titulaire})`,
       vendor: 'Free Mobile',
       type: 'phone',
       recurrence: 'monthly',
       fileAttributes: {
         metadata: {
-          datetime: date.toDate(),
+          datetime: date.utc().toDate(),
           datetimeLabel: 'issueDate',
           contentAuthor: 'free',
-          issueDate: date.toDate(),
+          issueDate: date.utc().toDate(),
           invoiceNumberV2: invoiceId,
           contractReference: contractId,
           isSubscription: true,
