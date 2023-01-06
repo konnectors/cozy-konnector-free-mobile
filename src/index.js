@@ -12,8 +12,10 @@ const {
   BaseKonnector,
   requestFactory,
   utils,
-  cozyClient
+  cozyClient,
+  manifest
 } = require('cozy-konnector-libs')
+const { Q } = require('cozy-client')
 
 // Importing models to get qualification by label
 const models = cozyClient.new.models
@@ -68,6 +70,8 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
   })
+  // Following a mistake on files treatment during the 1.11.0 release, we need to clean unwanted directories
+  await cleaningUnwantedDirs()
 })
 
 async function login(fields) {
@@ -260,4 +264,43 @@ async function moveOldFilesToNewDir(fields, label) {
   }
   log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
   await cozyClient.files.destroyById(dirToDelete._id)
+}
+
+async function cleaningUnwantedDirs() {
+  const months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre'
+  ]
+  const dirsToDelete = []
+  const query = Q('io.cozy.files')
+    .where({
+      'cozyMetadata.createdByApp': manifest.data.slug
+    })
+    .partialIndex({
+      restore_path: { $exists: false },
+      type: 'directory'
+    })
+  const results = await cozyClient.new.queryAll(query)
+  for (const result of results) {
+    if (months.some(month => result.attributes.name.startsWith(month))) {
+      dirsToDelete.push(result.id)
+    }
+  }
+  await Promise.all(
+    dirsToDelete.map(dirToDelete =>
+      cozyClient.new
+        .collection('io.cozy.files')
+        .deleteFilePermanently(dirToDelete)
+    )
+  )
 }
