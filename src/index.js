@@ -70,8 +70,8 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
   })
-  // Following a mistake on files treatment during the 1.11.0 release, we need to clean unwanted directories
-  await cleaningUnwantedDirs()
+  // Following changes on the targeted website after the 1.11.0 release, we need to clean unwanted directories
+  await cleaningUnwantedElements()
 })
 
 async function login(fields) {
@@ -266,7 +266,7 @@ async function moveOldFilesToNewDir(fields, label) {
   await cozyClient.files.destroyById(dirToDelete._id)
 }
 
-async function cleaningUnwantedDirs() {
+async function cleaningUnwantedElements() {
   const months = [
     'janvier',
     'février',
@@ -282,25 +282,59 @@ async function cleaningUnwantedDirs() {
     'décembre'
   ]
   const dirsToDelete = []
-  const query = Q('io.cozy.files')
+  const filesInDirsToDelete = []
+  const filesToDelete = []
+  const dirsQuery = Q('io.cozy.files')
     .where({
       'cozyMetadata.createdByApp': manifest.data.slug
     })
     .partialIndex({
+      // This option is to make sure the request just retrieve never-trashed directories
       restore_path: { $exists: false },
       type: 'directory'
     })
-  const results = await cozyClient.new.queryAll(query)
-  for (const result of results) {
+  const dirsResults = await cozyClient.new.queryAll(dirsQuery)
+  for (const result of dirsResults) {
     if (months.some(month => result.attributes.name.startsWith(month))) {
       dirsToDelete.push(result.id)
     }
   }
+  for (const directoryId of dirsToDelete) {
+    const filesQuery = Q('io.cozy.files')
+      .where({
+        dir_id: directoryId
+      })
+      .partialIndex({
+        trashed: false,
+        type: 'file'
+      })
+    const filesResults = await cozyClient.new.queryAll(filesQuery)
+    for (const file of filesResults) {
+      filesInDirsToDelete.push(file)
+    }
+  }
+  for (const file of filesInDirsToDelete) {
+    // Making sure we're not deleting any file wich might have been created by the user
+    if (file.cozyMetadata.createdByApp === manifest.data.slug) {
+      filesToDelete.push(file._id)
+    } else {
+      // If some are found, get rid of the id of the dir. they come from in 'dirsToDelete' list
+      // so the user can keep them.
+      const idx = dirsToDelete.indexOf(file.dir_id)
+      // If there is more than one file created by the user in the checked dir, next loop will find '-1'
+      // so we're avoiding the '.splice' method as the dir is already erased from the list
+      if (idx === -1) {
+        continue
+      }
+      dirsToDelete.splice(idx, 1)
+    }
+  }
+  const elementsToDelete = filesToDelete.concat(dirsToDelete)
   await Promise.all(
-    dirsToDelete.map(dirToDelete =>
+    elementsToDelete.map(elementToDelete =>
       cozyClient.new
         .collection('io.cozy.files')
-        .deleteFilePermanently(dirToDelete)
+        .deleteFilePermanently(elementToDelete)
     )
   )
 }
