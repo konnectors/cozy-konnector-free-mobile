@@ -267,6 +267,7 @@ async function moveOldFilesToNewDir(fields, label) {
 }
 
 async function cleaningUnwantedElements() {
+  log('info', 'Cleaning unwanted Dirs and files starts')
   const months = [
     'janvier',
     'février',
@@ -293,6 +294,7 @@ async function cleaningUnwantedElements() {
       restore_path: { $exists: false },
       type: 'directory'
     })
+    .indexFields(['cozyMetadata.createdByApp'])
   const dirsResults = await cozyClient.new.queryAll(dirsQuery)
   for (const result of dirsResults) {
     if (months.some(month => result.attributes.name.startsWith(month))) {
