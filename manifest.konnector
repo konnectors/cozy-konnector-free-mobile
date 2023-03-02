@@ -117,6 +117,9 @@
     }
   },
   "banksTransactionRegExp": "\\bfree mobile\\b",
+  "qualification_labels": [
+    "telecom_invoice"
+  ],
   "features": [
     "LOGIN_OK",
     "METADATA_DEDUP",
