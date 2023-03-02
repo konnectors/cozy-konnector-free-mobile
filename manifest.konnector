@@ -1,5 +1,5 @@
 {
-  "version": "1.16.0",
+  "version": "1.15.1",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
@@ -117,6 +117,9 @@
     }
   },
   "banksTransactionRegExp": "\\bfree mobile\\b",
+  "qualification_labels": [
+    "telecom_invoice"
+  ],
   "features": [
     "LOGIN_OK",
     "METADATA_DEDUP",
