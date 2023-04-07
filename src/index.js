@@ -49,7 +49,9 @@ module.exports = new BaseKonnector(async function fetch(fields) {
 
   const lines = await extractLines($accountPage)
   let bills = []
-  if (lines.length < 1) {
+  if (lines.length === 0) {
+    log('warn', 'No lines found on the website')
+  } else if (lines.length === 1) {
     log('info', `Found 1 lines in total`)
     bills = await parseBills($accountPage)
   } else {
@@ -115,24 +117,39 @@ function hasLogoutButton($) {
 
 function extractClientName($page) {
   // Something like '   "     Jean Valjean    "  '
-  const raw = $page('.identite').text()
-  return raw.replace('"', '').trim()
+  const raw = $page('.identite_bis').text()
+  const name = raw.replace('"', '').trim()
+  if (name.length < 1) {
+    log('error', 'No client name detected')
+    throw new Error('UNKOWN_ERROR')
+  }
+  return name
 }
 
 function extractLines($) {
-  const liList = Array.from($('li.user'))
-  // Construct link array
   const lines = []
-  for (const line of liList) {
-    lines.push([
-      // Phone Number
-      $(line)
-        .text()
-        .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
-        .replace(/ /g, ''),
-      // Account link
-      $(line).find('a').attr('href')
-    ])
+  // Multi line selector is absent when mono line
+  if ($('#multi-ligne-selector').length === 0) {
+    // No adherence on the div with the phone number, get an upper div
+    const number = $('.current-user__infos')
+      .text()
+      .match(/0\d \d{2} aaaa\d{2} \d{2} \d{2}/)[0]
+      .replace(/ /g, '')
+    lines.push([number, null])
+  } else {
+    const liList = Array.from($('li.user'))
+    // Construct link array
+    for (const line of liList) {
+      lines.push([
+        // Phone Number
+        $(line)
+          .text()
+          .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
+          .replace(/ /g, ''),
+        // Account link
+        $(line).find('a').attr('href')
+      ])
+    }
   }
   return lines
 }
@@ -140,18 +157,17 @@ function extractLines($) {
 // Parse the account page to extract bill data.
 function parseBills($, secondaryLinePhoneNumber) {
   const bills = []
-  const titulaire = $('div.identite').text().trim()
+  const titulaire = $('div.identite_bis').text().trim()
   let phoneNumber = secondaryLinePhoneNumber
     ? secondaryLinePhoneNumber
     : $('p.table-sub-title').text().trim().replace(/ /g, '')
-  const tabLines = Array.from($('div.table-facture').find('div.grid-l'))
-
+  const tabLines = Array.from($('div.table-facture').find('.invoice'))
   for (let line of tabLines) {
     const amount = parseFloat(
-      $(line).find('div.amount').text().trim().replace('€', '')
+      $(line).find('div.table-price').text().trim().replace('€', '')
     )
 
-    const url = $(line).find('div.download > a').attr('href')
+    const url = $(line).find('div > a').attr('href')
     const type = url.match(/facture=([a-z]*)/)[1]
     let date
     if (type == 'pdf') {
