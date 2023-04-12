@@ -2,7 +2,7 @@
 // In the future, will be set by the stack
 process.env.SENTRY_DSN =
   process.env.SENTRY_DSN ||
-  'https://151ddd2738c745829afbed143c7b5ef0:10f0842a61c94f6cbc542de579104e86@sentry.cozycloud.cc/24'
+  'https://bda9bc980b114b06a11cde574155a466@errors.cozycloud.cc/57'
 
 const moment = require('moment')
 moment.locale('fr')
