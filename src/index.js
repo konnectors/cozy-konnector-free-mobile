@@ -133,7 +133,7 @@ function extractLines($) {
     // No adherence on the div with the phone number, get an upper div
     const number = $('.current-user__infos')
       .text()
-      .match(/0\d \d{2} aaaa\d{2} \d{2} \d{2}/)[0]
+      .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
       .replace(/ /g, '')
     lines.push([number, null])
   } else {
