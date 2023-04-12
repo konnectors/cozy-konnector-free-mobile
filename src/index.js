@@ -2,7 +2,7 @@
 // In the future, will be set by the stack
 process.env.SENTRY_DSN =
   process.env.SENTRY_DSN ||
-  'https://151ddd2738c745829afbed143c7b5ef0:10f0842a61c94f6cbc542de579104e86@sentry.cozycloud.cc/24'
+  'https://bda9bc980b114b06a11cde574155a466@errors.cozycloud.cc/57'
 
 const moment = require('moment')
 moment.locale('fr')
@@ -133,7 +133,7 @@ function extractLines($) {
     // No adherence on the div with the phone number, get an upper div
     const number = $('.current-user__infos')
       .text()
-      .match(/0\d \d{2} aaaa\d{2} \d{2} \d{2}/)[0]
+      .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
       .replace(/ /g, '')
     lines.push([number, null])
   } else {
