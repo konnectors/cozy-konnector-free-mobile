@@ -29,6 +29,7 @@ let request = requestFactory({
 })
 
 const baseUrl = 'https://mobile.free.fr'
+const linesAndNames = []
 
 module.exports = new BaseKonnector(async function fetch(fields) {
   await this.deactivateAutoSuccessfulLogin()
@@ -47,7 +48,10 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     accountDirectoryLabel
   )
 
+  // Construct an array with [phoneNumber, partialLinkToAccount] for each line
+  // Link will be null for account with only one line
   const lines = await extractLines($accountPage)
+
   let bills = []
   if (lines.length === 0) {
     log('warn', 'No lines found on the website')
@@ -64,7 +68,6 @@ module.exports = new BaseKonnector(async function fetch(fields) {
       bills = bills.concat(await parseBills($otherPage, line[0]))
     }
   }
-
   await this.saveBills(bills, fields.folderPath, {
     fileIdAttributes: ['vendor', 'contractId', 'date', 'amount'],
     linkBankOperations: false,
@@ -72,7 +75,7 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccount: this.accountId,
     sourceAccountIdentifier: fields.login
   })
-  // Following changes on the targeted website after the 1.11.0 release, we need to clean unwanted directories
+  // Following changes on the targeted website after the 1.15.0 release, we need to clean unwanted
   await cleaningUnwantedElements()
 })
 
@@ -161,6 +164,8 @@ function parseBills($, secondaryLinePhoneNumber) {
   let phoneNumber = secondaryLinePhoneNumber
     ? secondaryLinePhoneNumber
     : $('p.table-sub-title').text().trim().replace(/ /g, '')
+  // Saving name and number for cleaning purpose
+  linesAndNames.push([phoneNumber, titulaire])
   const tabLines = Array.from($('div.table-facture').find('.invoice'))
   for (let line of tabLines) {
     const amount = parseFloat(
@@ -283,24 +288,6 @@ async function moveOldFilesToNewDir(fields, label) {
 }
 
 async function cleaningUnwantedElements() {
-  log('info', 'Cleaning unwanted Dirs and files starts')
-  const months = [
-    'janvier',
-    'février',
-    'mars',
-    'avril',
-    'mai',
-    'juin',
-    'juillet',
-    'août',
-    'septembre',
-    'octobre',
-    'novembre',
-    'décembre'
-  ]
-  const dirsToDelete = []
-  const filesInDirsToDelete = []
-  const filesToDelete = []
   const dirsQuery = Q('io.cozy.files')
     .where({
       'cozyMetadata.createdByApp': manifest.data.slug
@@ -312,47 +299,62 @@ async function cleaningUnwantedElements() {
     })
     .indexFields(['cozyMetadata.createdByApp'])
   const dirsResults = await cozyClient.new.queryAll(dirsQuery)
-  for (const result of dirsResults) {
-    if (months.some(month => result.attributes.name.startsWith(month))) {
-      dirsToDelete.push(result.id)
-    }
-  }
-  for (const directoryId of dirsToDelete) {
-    const filesQuery = Q('io.cozy.files')
-      .where({
-        dir_id: directoryId
-      })
-      .partialIndex({
-        trashed: false,
-        type: 'file'
-      })
-    const filesResults = await cozyClient.new.queryAll(filesQuery)
-    for (const file of filesResults) {
-      filesInDirsToDelete.push(file)
-    }
-  }
-  for (const file of filesInDirsToDelete) {
-    // Making sure we're not deleting any file wich might have been created by the user
-    if (file.cozyMetadata.createdByApp === manifest.data.slug) {
-      filesToDelete.push(file._id)
-    } else {
-      // If some are found, get rid of the id of the dir. they come from in 'dirsToDelete' list
-      // so the user can keep them.
-      const idx = dirsToDelete.indexOf(file.dir_id)
-      // If there is more than one file created by the user in the checked dir, next loop will find '-1'
-      // so we're avoiding the '.splice' method as the dir is already erased from the list
-      if (idx === -1) {
-        continue
+  for (const [phone, titulaire] of linesAndNames) {
+    const brokenName = `${phone} ()`
+    const correctName = `${phone} (${titulaire})`
+    for (const dir of dirsResults) {
+       // Checking existence of destination directory
+       const correctDir = dirsResults.find(
+        currentDir => currentDir.name === correctName
+      )
+      if (
+        dir.name === brokenName && correctDir
+      ) {
+        log('debug', 'Need to clean one directory')
+        const idDestination = correctDir.id
+        await movingFiles(dir.id, idDestination)
+        await deletingDirIfEmpty(dir.id)
       }
-      dirsToDelete.splice(idx, 1)
     }
   }
-  const elementsToDelete = filesToDelete.concat(dirsToDelete)
-  await Promise.all(
-    elementsToDelete.map(elementToDelete =>
-      cozyClient.new
+}
+
+async function movingFiles(idOrigine, idDestination) {
+  const filesQuery = Q('io.cozy.files')
+    .where({
+      dir_id: idOrigine
+    })
+    .partialIndex({
+      trashed: false,
+      type: 'file'
+    })
+
+  const filesResults = await cozyClient.new.queryAll(filesQuery)
+  // Making sure we're not moving any file wich might have been created by the user
+  for (const file of filesResults) {
+    if (file.cozyMetadata.createdByApp === manifest.data.slug) {
+      log('debug', 'Moving one file')
+      await cozyClient.new
         .collection('io.cozy.files')
-        .deleteFilePermanently(elementToDelete)
-    )
-  )
+        .updateAttributes(file.id, {
+          dir_id: idDestination
+        })
+    }
+  }
+}
+
+async function deletingDirIfEmpty(id) {
+  const filesQuery = Q('io.cozy.files')
+    .where({
+      dir_id: id
+    })
+    .partialIndex({
+      trashed: false,
+      type: 'file'
+    })
+  const filesResults = await cozyClient.new.queryAll(filesQuery)
+  // if dir is empty, we delete it
+  if (filesResults.length === 0) {
+    await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(id)
+  }
 }
