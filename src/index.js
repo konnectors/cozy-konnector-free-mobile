@@ -222,9 +222,14 @@ function parseBills($, secondaryLinePhoneNumber) {
 }
 
 async function renameDir(fields, label) {
-  return await cozyClient.files.updateAttributesByPath(fields.folderPath, {
-    name: label
-  })
+  const dir = await cozyClient.new
+    .collection('io.cozy.files')
+    .statByPath(fields.folderPath)
+  return await cozyClient.new
+    .collection('io.cozy.files')
+    .updateAttributes(dir.id, {
+      name: label
+    })
 }
 
 async function ensureAccountDirectoryLabel(account, fields, label) {
@@ -233,6 +238,7 @@ async function ensureAccountDirectoryLabel(account, fields, label) {
     log('info', `Renaming the folder to ${label}`)
     try {
       const newFolder = await renameDir(fields, label)
+      console.log(rename)
       fields.folderPath = newFolder.attributes.path
     } catch (e) {
       if (e.status === 409) {
@@ -251,18 +257,15 @@ async function ensureAccountDirectoryLabel(account, fields, label) {
     }
 
     log('info', `Updating the folder path in the account`)
-    const newAccount = await cozyClient.data.updateAttributes(
-      'io.cozy.accounts',
-      account._id,
-      {
-        label,
-        auth: {
-          ...account.auth,
-          folderPath: fields.folderPath,
-          namePath: label
-        }
-      }
-    )
+    account.label = label
+    account.auth = {
+      ...account.auth,
+      folderPath: fields.folderPath,
+      namePath: label
+    }
+    const newAccount = await cozyClient.new
+      //      .collection('io.cozy.accounts')
+      .update(account)
     return newAccount
   } else {
     return account
@@ -272,19 +275,27 @@ async function ensureAccountDirectoryLabel(account, fields, label) {
 async function moveOldFilesToNewDir(fields, label) {
   const pathConflicting =
     fields.folderPath.slice(0, fields.folderPath.lastIndexOf('/')) + '/' + label
-  const dirToDelete = await cozyClient.files.statByPath(pathConflicting)
-  const dirToKeep = await cozyClient.files.statByPath(fields.folderPath)
+  const dirToDelete = await cozyClient.new
+    .collection('io.cozy.files')
+    .statByPath(pathConflicting)
+  const dirToKeep = await cozyClient.new
+    .collection('io.cozy.files')
+    .statByPath(fields.folderPath)
   const filesToMove = await utils.queryAll('io.cozy.files', {
     dir_id: dirToDelete._id
   })
   log('debug', `Moving ${filesToMove.length} files to ${dirToKeep._id}`)
   for (const file of filesToMove) {
-    await cozyClient.files.updateAttributesById(file._id, {
-      dir_id: dirToKeep._id
-    })
+    await cozyClient.new
+      .collection('io.cozy.files')
+      .updateAttributes(file._id, {
+        dir_id: dirToKeep._id
+      })
   }
   log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
-  await cozyClient.files.destroyById(dirToDelete._id)
+  await cozyClient.new
+    .collection('io.cozy.files')
+    .deleteFilePermanently(dirToDelete._id)
 }
 
 async function cleaningUnwantedElements() {
@@ -303,13 +314,11 @@ async function cleaningUnwantedElements() {
     const brokenName = `${phone} ()`
     const correctName = `${phone} (${titulaire})`
     for (const dir of dirsResults) {
-       // Checking existence of destination directory
-       const correctDir = dirsResults.find(
+      // Checking existence of destination directory
+      const correctDir = dirsResults.find(
         currentDir => currentDir.name === correctName
       )
-      if (
-        dir.name === brokenName && correctDir
-      ) {
+      if (dir.name === brokenName && correctDir) {
         log('debug', 'Need to clean one directory')
         const idDestination = correctDir.id
         await movingFiles(dir.id, idDestination)
@@ -341,11 +350,13 @@ async function movingFiles(idOrigine, idDestination) {
           .updateAttributes(file.id, {
             dir_id: idDestination
           })
-      } catch(e) {
-        if(e.status == 409) {
+      } catch (e) {
+        if (e.status == 409) {
           // File with same name exist, this one is created by the connector, we delete it.
           log('warn', 'Deleting one freemobile duplicate')
-          await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(file.id)
+          await cozyClient.new
+            .collection('io.cozy.files')
+            .deleteFilePermanently(file.id)
         } else {
           throw e
         }
