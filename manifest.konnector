@@ -1,5 +1,5 @@
 {
-  "version": "1.16.0",
+  "version": "1.17.0",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
@@ -125,7 +125,8 @@
     "METADATA_DEDUP",
     "BILLS",
     "CARBON_COPY",
-    "DOC_QUALIFICATION_V2"
+    "DOC_QUALIFICATION_V2",
+    "SENTRY_V2"
   ],
   "manifest_version": "2"
 }
