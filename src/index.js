@@ -334,11 +334,22 @@ async function movingFiles(idOrigine, idDestination) {
   for (const file of filesResults) {
     if (file.cozyMetadata.createdByApp === manifest.data.slug) {
       log('debug', 'Moving one file')
-      await cozyClient.new
-        .collection('io.cozy.files')
-        .updateAttributes(file.id, {
-          dir_id: idDestination
-        })
+      // Avoiding conflict
+      try {
+        await cozyClient.new
+          .collection('io.cozy.files')
+          .updateAttributes(file.id, {
+            dir_id: idDestination
+          })
+      } catch(e) {
+        if(e.status == 409) {
+          // File with same name exist, this one is created by the connector, we delete it.
+          log('warn', 'Deleting one freemobile duplicate')
+          await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(file.id)
+        } else {
+          throw e
+        }
+      }
     }
   }
 }
@@ -356,5 +367,8 @@ async function deletingDirIfEmpty(id) {
   // if dir is empty, we delete it
   if (filesResults.length === 0) {
     await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(id)
+    log('warn', 'Deleting empty freemobile subdirectory')
+  } else {
+    log('warn', `Can't delete an non empty directory ${id}`)
   }
 }
