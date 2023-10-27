@@ -192,7 +192,7 @@ function parseBills($, secondaryLinePhoneNumber) {
     const bill = {
       amount,
       currency: 'EUR',
-      fileurl: baseUrl + url,
+      fileurl: baseUrl + '/account/conso-et-factures' + url,
       filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
       date: date.utc().toDate(),
       contractId: type == 'pdfrecap' ? 'Multiligne' : phoneNumber,
