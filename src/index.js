@@ -192,7 +192,7 @@ function parseBills($, secondaryLinePhoneNumber) {
     const bill = {
       amount,
       currency: 'EUR',
-      fileurl: baseUrl + url,
+      fileurl: baseUrl + '/account/conso-et-factures' + url,
       filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
       date: date.utc().toDate(),
       contractId: type == 'pdfrecap' ? 'Multiligne' : phoneNumber,
@@ -303,13 +303,11 @@ async function cleaningUnwantedElements() {
     const brokenName = `${phone} ()`
     const correctName = `${phone} (${titulaire})`
     for (const dir of dirsResults) {
-       // Checking existence of destination directory
-       const correctDir = dirsResults.find(
+      // Checking existence of destination directory
+      const correctDir = dirsResults.find(
         currentDir => currentDir.name === correctName
       )
-      if (
-        dir.name === brokenName && correctDir
-      ) {
+      if (dir.name === brokenName && correctDir) {
         log('debug', 'Need to clean one directory')
         const idDestination = correctDir.id
         await movingFiles(dir.id, idDestination)
@@ -341,11 +339,13 @@ async function movingFiles(idOrigine, idDestination) {
           .updateAttributes(file.id, {
             dir_id: idDestination
           })
-      } catch(e) {
-        if(e.status == 409) {
+      } catch (e) {
+        if (e.status == 409) {
           // File with same name exist, this one is created by the connector, we delete it.
           log('warn', 'Deleting one freemobile duplicate')
-          await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(file.id)
+          await cozyClient.new
+            .collection('io.cozy.files')
+            .deleteFilePermanently(file.id)
         } else {
           throw e
         }
