@@ -27,14 +27,28 @@ let request = requestFactory({
   // debug: true,
   jar: true
 })
+let requestJSON = requestFactory({
+  cheerio: false,
+  json: true,
+  // debug: true,
+  jar: true
+})
 
 const baseUrl = 'https://mobile.free.fr'
 const linesAndNames = []
 
 module.exports = new BaseKonnector(async function fetch(fields) {
+  // 2FA is mandatory now, even with persisting cookie
+  // We exit in case of auto exec
+  if (process.env.COZY_JOB_MANUAL_EXECUTION !== 'true') {
+    log('warn', "Not a manual execution, don't launch because 2FA needed")
+    throw new Error('USER_ACTION_NEEDED.TWOFA_EXPIRED')
+  }
+
   await this.deactivateAutoSuccessfulLogin()
-  const $accountPage = await login(fields)
+  const $accountPage = await login.bind(this)(fields)
   await this.notifySuccessfulLogin()
+
   // Evaluating clientName
   const clientName = extractClientName($accountPage)
   // As login need to be successfull to reach this point, login is a valid data
@@ -84,27 +98,83 @@ async function login(fields) {
     log('error', 'detected not numerical chars')
     throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
   }
-  // Prefetching cookie
-  await request(`${baseUrl}/account/`)
-  // Login with POST
-  const $req = await request({
-    uri: `${baseUrl}/account/`,
-    method: 'POST',
-    form: {
-      'login-ident': fields.login,
-      'login-pwd': fields.password,
-      'bt-login': 1
+  // Prefetching cookies
+  await request(`${baseUrl}/account/v2/login/`)
+  // Prefetching CSRF
+  const $csrf = await requestJSON(`${baseUrl}/account/v2/api/auth/csrf`)
+  const csrf = $csrf.csrfToken
+  // Posting credentials
+  try {
+    await request({
+      uri: `${baseUrl}/account/v2/api/auth/callback/credentials`,
+      method: 'POST',
+      form: {
+        username: fields.login,
+        password: fields.password,
+        redirect: 'false',
+        csrfToken: csrf,
+        callbackUrl: 'https://mobile.free.fr/account/v2/login',
+        json: 'true'
+      }
+    })
+  } catch (e) {
+    if (e.statusCode === 401) {
+      log('error', e.error)
+      throw new Error('LOGIN_FAILED')
+    } else {
+      log('error', e)
+      log('error', 'Unknown error when sending credentials')
+      throw new Error('VENDOR_DOWN')
     }
-  })
-  // No difference found on request, so we detect login in html content
-  if (hasLogoutButton($req)) {
-    // Login button is a type a with a specific href
-    return $req
-  } else if ($req.html().includes('utilisateur ou mot de passe incorrect')) {
-    // Only display an error message in a div so we look for it
-    throw new Error('LOGIN_FAILED')
+  }
+
+  // Doing 2FA with possibly 3 try, account seems to block at 5
+  const initialTryNumber = 1
+  await waitFor2FA.bind(this)(initialTryNumber, csrf)
+
+  // Control login via logout button
+  const $mainPage = await request(`${baseUrl}/account/conso-et-factures`)
+  if (hasLogoutButton($mainPage)) {
+    return $mainPage
   } else {
+    log(
+      'error',
+      'Not logout button after correct login, probably not connected'
+    )
     throw new Error('VENDOR_DOWN')
+  }
+}
+
+async function waitFor2FA(tryNumber, csrf) {
+  const code2FA = await this.waitForTwoFaCode({
+    type: 'sms'
+  })
+  try {
+    await request({
+      uri: `${baseUrl}/account/v2/api/auth/callback/credentials`,
+      method: 'POST',
+      form: {
+        codeOtp: code2FA,
+        redirect: 'false',
+        csrfToken: csrf,
+        callbackUrl: 'https://mobile.free.fr/account/v2/otp',
+        json: 'true'
+      }
+    })
+  } catch (e) {
+    if (e.statusCode === 401) {
+      log('error', 'Wrong 2FA Code')
+      if (tryNumber < 3) {
+        await waitFor2FA.bind(this)(tryNumber + 1, csrf)
+      } else {
+        log('error', e.error)
+        throw new Error('LOGIN_FAILED.WRONG_TWOFA_CODE')
+      }
+    } else {
+      log('error', e)
+      log('error', 'Unknown error when sending 2FA code')
+      throw new Error('VENDOR_DOWN')
+    }
   }
 }
 
