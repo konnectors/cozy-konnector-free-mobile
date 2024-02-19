@@ -87,7 +87,8 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     linkBankOperations: false,
     identifiers: 'free mobile',
     sourceAccount: this.accountId,
-    sourceAccountIdentifier: fields.login
+    sourceAccountIdentifier: fields.login,
+    verboseFileslog: true
   })
   // Following changes on the targeted website after the 1.15.0 release, we need to clean unwanted
   await cleaningUnwantedElements()
