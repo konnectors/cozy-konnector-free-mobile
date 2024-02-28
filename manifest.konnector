@@ -7,7 +7,7 @@
   "slug": "freemobile",
   "source": "git@github.com:konnectors/cozy-konnector-free-mobile.git",
   "editor": "Cozy",
-  "vendor_link": "https://mobile.free.fr/",
+  "vendor_link": "https://mobile.free.fr",
   "categories": [
     "telecom"
   ],
