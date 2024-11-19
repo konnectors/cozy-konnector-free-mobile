@@ -1,5 +1,5 @@
 {
-  "version": "1.19.0",
+  "version": "1.24.0",
   "name": "Free Mobile",
   "type": "konnector",
   "language": "node",
@@ -9,7 +9,7 @@
   "editor": "Cozy",
   "vendor_link": "https://mobile.free.fr/",
   "categories": [
-    "telecom"
+    "isp"
   ],
   "fields": {
     "login": {
