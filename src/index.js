@@ -157,6 +157,7 @@ async function waitFor2FA(tryNumber, csrf) {
       form: {
         codeOtp: code2FA,
         redirect: 'false',
+        isTrusted: 'false',
         csrfToken: csrf,
         callbackUrl: 'https://mobile.free.fr/account/v2/otp',
         json: 'true'
@@ -180,19 +181,16 @@ async function waitFor2FA(tryNumber, csrf) {
 }
 
 function hasLogoutButton($) {
-  let status = false
-  $('a').each((index, value) => {
-    if ($(value).attr('href').includes('/account/?logout')) {
-      status = true
-    }
-  })
-  return status
+  const logoutLinksNb = $('button').filter((i, el) => {
+    return $(el).text().includes('Déconnexion')
+  }).length
+
+  return Boolean(logoutLinksNb)
 }
 
 function extractClientName($page) {
   // Something like '   "     Jean Valjean    "  '
-  const raw = $page('.identite_bis').text()
-  const name = raw.replace('"', '').trim()
+  const name = $page('#user-name').text().trim()
   if (name.length < 1) {
     log('error', 'No client name detected')
     throw new Error('UNKOWN_ERROR')
