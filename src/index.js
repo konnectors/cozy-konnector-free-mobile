@@ -90,6 +90,15 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccountIdentifier: fields.login,
     verboseFilesLog: true
   })
+
+  const $identityPage = await request({
+    uri: `${baseUrl}/account/mes-informations`,
+    method: 'GET'
+  })
+
+  const identity = await parseIdentity($identityPage)
+  await this.saveIdentity(identity, fields.login)
+
   // Following changes on the targeted website after the 1.15.0 release, we need to clean unwanted
   await cleaningUnwantedElements()
 })
@@ -314,6 +323,52 @@ function getOldBills($, titulaire, phoneNumber) {
     bills.push(bill)
   }
   return bills
+}
+
+function parseIdentity($) {
+  let userName
+  let email
+  let userAddress = $('address')
+    .text()
+    .replace(/\n/g, '')
+    .replace(/(\s){2,}/g, ' ')
+    .trim()
+
+  // No distinct class or id to catch what is wanted
+  const infosElements = $('.infos__text').toArray()
+  for (let element of infosElements) {
+    const elementText = $(element).text()
+    if (elementText.includes('email')) {
+      email = elementText.split('email')[1].trim()
+    }
+    if (elementText.includes('Titulaire')) {
+      userName = elementText
+        .split('\n')[2]
+        .replace(/\s{2,}/g, '')
+        .trim()
+    }
+  }
+  const [, street, postCode, city] = userAddress.match(
+    /^(.*?),?\s*(\d{5})\s+(.+)$/
+  )
+
+  const identity = {
+    name: {
+      givenName: userName.split(' ')[1],
+      lastName: userName.split(' ')[0],
+      fullName: userName
+    },
+    email: [{ address: email }],
+    address: [
+      {
+        formattedAddress: userAddress.replace(',', ''),
+        street: street.replace(',', ''),
+        postCode,
+        city
+      }
+    ]
+  }
+  return identity
 }
 
 async function renameDir(fields, label) {
