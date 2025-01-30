@@ -4,8 +4,8 @@ process.env.SENTRY_DSN =
   process.env.SENTRY_DSN ||
   'https://bda9bc980b114b06a11cde574155a466@errors.cozycloud.cc/57'
 
-const moment = require('moment')
-moment.locale('fr')
+const { format, parse } = require('date-fns')
+const { fr } = require('date-fns/locale')
 
 const {
   log,
@@ -90,6 +90,15 @@ module.exports = new BaseKonnector(async function fetch(fields) {
     sourceAccountIdentifier: fields.login,
     verboseFilesLog: true
   })
+
+  const $identityPage = await request({
+    uri: `${baseUrl}/account/mes-informations`,
+    method: 'GET'
+  })
+
+  const identity = await parseIdentity($identityPage)
+  await this.saveIdentity(identity, fields.login)
+
   // Following changes on the targeted website after the 1.15.0 release, we need to clean unwanted
   await cleaningUnwantedElements()
 })
@@ -202,13 +211,12 @@ function extractLines($) {
   const lines = []
   // Multi line selector is absent when mono line
   if ($('#multi-ligne-selector').length === 0) {
+    log('is not multiline')
     // No adherence on the div with the phone number, get an upper div
-    const number = $('.current-user__infos')
-      .text()
-      .match(/0\d \d{2} \d{2} \d{2} \d{2}/)[0]
-      .replace(/ /g, '')
+    const number = $('#user-msisdn').text().replace(/ /g, '')
     lines.push([number, null])
   } else {
+    log('info', 'is multilines')
     const liList = Array.from($('li.user'))
     // Construct link array
     for (const line of liList) {
@@ -229,56 +237,83 @@ function extractLines($) {
 // Parse the account page to extract bill data.
 function parseBills($, secondaryLinePhoneNumber) {
   const bills = []
-  const titulaire = $('div.identite_bis').text().trim()
+  const titulaire = $('#user-name').text().trim()
   let phoneNumber = secondaryLinePhoneNumber
     ? secondaryLinePhoneNumber
-    : $('p.table-sub-title').text().trim().replace(/ /g, '')
+    : $('#user-msisdn').text().trim().replace(/ /g, '')
   // Saving name and number for cleaning purpose
   linesAndNames.push([phoneNumber, titulaire])
-  const tabLines = Array.from($('div.table-facture').find('.invoice'))
+  bills.push(...getLastBill($, titulaire, phoneNumber))
+  bills.push(...getOldBills($, titulaire, phoneNumber))
+  return bills
+}
+
+function getLastBill($, titulaire, phoneNumber) {
+  const amount = parseFloat(
+    $('p[class*=Illiad]').text().trim().replace('€', ',')
+  )
+  const url = $('a[download]').attr('href')
+  const invoiceId = url.match(/([0-9]*)\?display=1/)[1]
+  const foundDate = $('h3[class*="font-bold"]').text().split('-')[1].trim()
+  const date = parse(foundDate, 'MMMM yyyy', new Date(), { locale: fr })
+  const bill = {
+    amount,
+    currency: 'EUR',
+    fileurl: baseUrl + url,
+    filename: `${format(date, 'yyyyMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
+    date: date,
+    contractId: phoneNumber,
+    contractLabel: `${phoneNumber} (${titulaire})`,
+    vendor: 'Free Mobile',
+    type: 'phone',
+    recurrence: 'monthly',
+    fileAttributes: {
+      metadata: {
+        datetime: date,
+        datetimeLabel: 'issueDate',
+        contentAuthor: 'free',
+        issueDate: date,
+        invoiceNumberV2: invoiceId,
+        isSubscription: true,
+        carbonCopy: true,
+        qualification: Qualification.getByLabel('phone_invoice')
+      }
+    }
+  }
+  return [bill]
+}
+
+function getOldBills($, titulaire, phoneNumber) {
+  const bills = []
+  const tabLines = $('#invoices li').toArray()
   for (let line of tabLines) {
     const amount = parseFloat(
-      $(line).find('div.table-price').text().trim().replace('€', '')
+      $(line).find('span').text().trim().replace('€', '')
     )
-
     const url = $(line).find('div > a').attr('href')
-    const type = url.match(/facture=([a-z]*)/)[1]
-    let date
-    if (type == 'pdf') {
-      date = moment(url.match(/date=([0-9]{8})/)[1], 'YYYYMMDD')
-    } else if (type == 'pdfrecap') {
-      // When bills is Multiline, the date in url is always the date of the day
-      // So we extract the date from the line of the array of bills
-
-      const dateString = $(line).find('div.date').text().trim()
-      date = moment(dateString, 'MMMM YYYY')
-    } else {
-      log('warn', 'Impossible to match a date for this bill')
-      continue
-    }
-    const contractId = url.match(/&l=([0-9]*)/)[1]
-    const invoiceId = url.match(/&id=([0-9abcdef]*)/)[1]
+    const invoiceId = url.match(/([0-9]*)\?display=1/)[1]
+    const foundDate = $(line).find('h3').text().trim()
+    const date = parse(foundDate, 'MMMM yyyy', new Date(), { locale: fr })
     const bill = {
       amount,
       currency: 'EUR',
-      fileurl: baseUrl + '/account/conso-et-factures' + url,
-      filename: `${date.format('YYYYMM')}_freemobile_${amount.toFixed(2)}€.pdf`,
-      date: date.utc().toDate(),
-      contractId: type == 'pdfrecap' ? 'Multiligne' : phoneNumber,
-      contractLabel: `${
-        type == 'pdfrecap' ? 'Multiligne' : phoneNumber
-      } (${titulaire})`,
+      fileurl: baseUrl + url,
+      filename: `${format(date, 'yyyyMM')}_freemobile_${amount.toFixed(
+        2
+      )}€.pdf`,
+      date: date,
+      contractId: phoneNumber,
+      contractLabel: `${phoneNumber} (${titulaire})`,
       vendor: 'Free Mobile',
       type: 'phone',
       recurrence: 'monthly',
       fileAttributes: {
         metadata: {
-          datetime: date.utc().toDate(),
+          datetime: date,
           datetimeLabel: 'issueDate',
           contentAuthor: 'free',
-          issueDate: date.utc().toDate(),
+          issueDate: date,
           invoiceNumberV2: invoiceId,
-          contractReference: contractId,
           isSubscription: true,
           carbonCopy: true,
           qualification: Qualification.getByLabel('phone_invoice')
@@ -288,6 +323,52 @@ function parseBills($, secondaryLinePhoneNumber) {
     bills.push(bill)
   }
   return bills
+}
+
+function parseIdentity($) {
+  let userName
+  let email
+  let userAddress = $('address')
+    .text()
+    .replace(/\n/g, '')
+    .replace(/(\s){2,}/g, ' ')
+    .trim()
+
+  // No distinct class or id to catch what is wanted
+  const infosElements = $('.infos__text').toArray()
+  for (let element of infosElements) {
+    const elementText = $(element).text()
+    if (elementText.includes('email')) {
+      email = elementText.split('email')[1].trim()
+    }
+    if (elementText.includes('Titulaire')) {
+      userName = elementText
+        .split('\n')[2]
+        .replace(/\s{2,}/g, '')
+        .trim()
+    }
+  }
+  const [, street, postCode, city] = userAddress.match(
+    /^(.*?),?\s*(\d{5})\s+(.+)$/
+  )
+
+  const identity = {
+    name: {
+      givenName: userName.split(' ')[1],
+      lastName: userName.split(' ')[0],
+      fullName: userName
+    },
+    email: [{ address: email }],
+    address: [
+      {
+        formattedAddress: userAddress.replace(',', ''),
+        street: street.replace(',', ''),
+        postCode,
+        city
+      }
+    ]
+  }
+  return identity
 }
 
 async function renameDir(fields, label) {
