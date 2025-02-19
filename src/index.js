@@ -12,10 +12,8 @@ const {
   BaseKonnector,
   requestFactory,
   utils,
-  cozyClient,
-  manifest
+  cozyClient
 } = require('cozy-konnector-libs')
-const { Q } = require('cozy-client')
 
 // Importing models to get qualification by label
 const models = cozyClient.new.models
@@ -97,13 +95,11 @@ module.exports = new BaseKonnector(async function fetch(fields) {
   })
 
   const identity = await parseIdentity($identityPage)
-  await this.saveIdentity(identity, fields.login)
-
-  // Following changes on the targeted website after the 1.15.0 release, we need to clean unwanted
-  await cleaningUnwantedElements()
+  await this.saveIdentity({ contact: identity }, fields.login)
 })
 
 async function login(fields) {
+  log('info', `login starts`)
   if (!fields.login.match(/^\d+$/)) {
     log('error', 'detected not numerical chars')
     throw new Error('LOGIN_FAILED.WRONG_LOGIN_FORM')
@@ -156,6 +152,7 @@ async function login(fields) {
 }
 
 async function waitFor2FA(tryNumber, csrf) {
+  log('info', `waitFor2FA starts`)
   const code2FA = await this.waitForTwoFaCode({
     type: 'sms'
   })
@@ -198,6 +195,7 @@ function hasLogoutButton($) {
 }
 
 function extractClientName($page) {
+  log('info', `extractClientName starts`)
   // Something like '   "     Jean Valjean    "  '
   const name = $page('#user-name').text().trim()
   if (name.length < 1) {
@@ -208,6 +206,7 @@ function extractClientName($page) {
 }
 
 function extractLines($) {
+  log('info', `extractLines starts`)
   const lines = []
   // Multi line selector is absent when mono line
   if ($('#multi-ligne-selector').length === 0) {
@@ -236,6 +235,7 @@ function extractLines($) {
 
 // Parse the account page to extract bill data.
 function parseBills($, secondaryLinePhoneNumber) {
+  log('info', `parseBills starts`)
   const bills = []
   const titulaire = $('#user-name').text().trim()
   let phoneNumber = secondaryLinePhoneNumber
@@ -249,6 +249,7 @@ function parseBills($, secondaryLinePhoneNumber) {
 }
 
 function getLastBill($, titulaire, phoneNumber) {
+  log('info', `getLastBill starts`)
   const amount = parseFloat(
     $('p[class*=Illiad]').text().trim().replace('€', ',')
   )
@@ -284,6 +285,7 @@ function getLastBill($, titulaire, phoneNumber) {
 }
 
 function getOldBills($, titulaire, phoneNumber) {
+  log('info', `getOldBills starts`)
   const bills = []
   const tabLines = $('#invoices li').toArray()
   for (let line of tabLines) {
@@ -326,6 +328,7 @@ function getOldBills($, titulaire, phoneNumber) {
 }
 
 function parseIdentity($) {
+  log('info', `parseIdentity starts`)
   let userName
   let email
   let userAddress = $('address')
@@ -372,12 +375,14 @@ function parseIdentity($) {
 }
 
 async function renameDir(fields, label) {
+  log('info', `renameDir starts`)
   return await cozyClient.files.updateAttributesByPath(fields.folderPath, {
     name: label
   })
 }
 
 async function ensureAccountDirectoryLabel(account, fields, label) {
+  log('info', `ensureAccountDirectoryLabel starts`)
   const needLabel = !account || !account.label
   if (needLabel) {
     log('info', `Renaming the folder to ${label}`)
@@ -420,6 +425,7 @@ async function ensureAccountDirectoryLabel(account, fields, label) {
 }
 
 async function moveOldFilesToNewDir(fields, label) {
+  log('info', `moveOldFilesToNewDir starts`)
   const pathConflicting =
     fields.folderPath.slice(0, fields.folderPath.lastIndexOf('/')) + '/' + label
   const dirToDelete = await cozyClient.files.statByPath(pathConflicting)
@@ -435,90 +441,4 @@ async function moveOldFilesToNewDir(fields, label) {
   }
   log('debug', `Deleting old dir with id : ${dirToDelete._id}`)
   await cozyClient.files.destroyById(dirToDelete._id)
-}
-
-async function cleaningUnwantedElements() {
-  const dirsQuery = Q('io.cozy.files')
-    .where({
-      'cozyMetadata.createdByApp': manifest.data.slug
-    })
-    .partialIndex({
-      // This option is to make sure the request just retrieve never-trashed directories
-      restore_path: { $exists: false },
-      type: 'directory'
-    })
-    .indexFields(['cozyMetadata.createdByApp'])
-  const dirsResults = await cozyClient.new.queryAll(dirsQuery)
-  for (const [phone, titulaire] of linesAndNames) {
-    const brokenName = `${phone} ()`
-    const correctName = `${phone} (${titulaire})`
-    for (const dir of dirsResults) {
-      // Checking existence of destination directory
-      const correctDir = dirsResults.find(
-        currentDir => currentDir.name === correctName
-      )
-      if (dir.name === brokenName && correctDir) {
-        log('debug', 'Need to clean one directory')
-        const idDestination = correctDir.id
-        await movingFiles(dir.id, idDestination)
-        await deletingDirIfEmpty(dir.id)
-      }
-    }
-  }
-}
-
-async function movingFiles(idOrigine, idDestination) {
-  const filesQuery = Q('io.cozy.files')
-    .where({
-      dir_id: idOrigine
-    })
-    .partialIndex({
-      trashed: false,
-      type: 'file'
-    })
-
-  const filesResults = await cozyClient.new.queryAll(filesQuery)
-  // Making sure we're not moving any file wich might have been created by the user
-  for (const file of filesResults) {
-    if (file.cozyMetadata.createdByApp === manifest.data.slug) {
-      log('debug', 'Moving one file')
-      // Avoiding conflict
-      try {
-        await cozyClient.new
-          .collection('io.cozy.files')
-          .updateAttributes(file.id, {
-            dir_id: idDestination
-          })
-      } catch (e) {
-        if (e.status == 409) {
-          // File with same name exist, this one is created by the connector, we delete it.
-          log('warn', 'Deleting one freemobile duplicate')
-          await cozyClient.new
-            .collection('io.cozy.files')
-            .deleteFilePermanently(file.id)
-        } else {
-          throw e
-        }
-      }
-    }
-  }
-}
-
-async function deletingDirIfEmpty(id) {
-  const filesQuery = Q('io.cozy.files')
-    .where({
-      dir_id: id
-    })
-    .partialIndex({
-      trashed: false,
-      type: 'file'
-    })
-  const filesResults = await cozyClient.new.queryAll(filesQuery)
-  // if dir is empty, we delete it
-  if (filesResults.length === 0) {
-    await cozyClient.new.collection('io.cozy.files').deleteFilePermanently(id)
-    log('warn', 'Deleting empty freemobile subdirectory')
-  } else {
-    log('warn', `Can't delete an non empty directory ${id}`)
-  }
 }
