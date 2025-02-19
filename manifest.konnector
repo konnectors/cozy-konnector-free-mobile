@@ -50,6 +50,9 @@
     },
     "carboncopy": {
       "type": "io.cozy.certified.carbon_copy"
+    },
+    "identities": {
+      "type": "io.cozy.identities"
     }
   },
   "developer": {
@@ -85,6 +88,9 @@
         },
         "carboncopy": {
           "description": "Utilisé pour certifier que vos fichiers sont copie conforme avec les documents d'origine"
+        },
+        "identities": {
+          "description": "Utilise pour sauvegarder votre identité"
         }
       }
     },
@@ -112,6 +118,9 @@
         },
         "carboncopy": {
           "description": "Required for carbon copy documents"
+        },
+        "identities": {
+          "description": "Required to save your identity"
         }
       }
     }
@@ -126,7 +135,8 @@
     "BILLS",
     "CARBON_COPY",
     "DOC_QUALIFICATION_V2",
-    "SENTRY_V2"
+    "SENTRY_V2",
+    "IDENTITY"
   ],
   "manifest_version": "2"
 }
